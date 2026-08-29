@@ -113,6 +113,7 @@
         font-size: 34px;
         font-weight: 900;
         letter-spacing: 0;
+        font-variant-numeric: tabular-nums;
       }
       .muted { color: var(--muted); }
       .message {
@@ -246,6 +247,7 @@
         font-size: 20px;
         font-weight: 900;
         border-right: 4px solid var(--gold);
+        font-variant-numeric: tabular-nums;
       }
       .rank-number.first-place {
         grid-template-rows: auto auto;
@@ -254,10 +256,13 @@
         font-size: 22px;
       }
       .crown {
-        color: #fff7d6;
+        color: #ffffff;
         font-size: 18px;
         line-height: 1;
-        text-shadow: 0 1px 2px rgba(64, 32, 0, 0.45);
+        -webkit-text-stroke: 1px #5f3b00;
+        text-shadow:
+          0 1px 0 #5f3b00,
+          0 0 4px rgba(95, 59, 0, 0.65);
       }
       .gold-rank .rank-number {
         background: linear-gradient(180deg, #f4d35e, #b77900);
@@ -299,6 +304,11 @@
         font-size: 18px;
         font-weight: 900;
         white-space: nowrap;
+        width: 8.4ch;
+        text-align: right;
+        font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
       }
       .rank-song {
         margin-top: 4px;
@@ -335,6 +345,11 @@
         font-size: 18px;
         font-weight: 900;
         white-space: nowrap;
+        width: 8.4ch;
+        text-align: right;
+        font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
       }
       .history-title {
         grid-column: 1 / 2;
@@ -354,6 +369,8 @@
       .score {
         font-weight: 900;
         white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
       }
       .stats {
         display: grid;
