@@ -255,14 +255,11 @@
         gap: 2px;
         font-size: 22px;
       }
-      .crown {
-        color: #ffffff;
-        font-size: 18px;
-        line-height: 1;
-        -webkit-text-stroke: 1px #5f3b00;
-        text-shadow:
-          0 1px 0 #5f3b00,
-          0 0 4px rgba(95, 59, 0, 0.65);
+      .crown-icon {
+        width: 20px;
+        height: 16px;
+        display: block;
+        filter: drop-shadow(0 1px 1px rgba(75, 45, 0, 0.35));
       }
       .gold-rank .rank-number {
         background: linear-gradient(180deg, #f4d35e, #b77900);
@@ -849,13 +846,35 @@
         const el = document.createElement('div');
         el.className = 'rank-number' + (rank === 1 ? ' first-place' : '');
         if (rank === 1) {
-          appendText(el, 'span', '♛', 'crown');
+          el.appendChild(createCrownIcon());
           appendText(el, 'span', '1');
         } else {
           el.textContent = rank;
         }
         parent.appendChild(el);
         return el;
+      }
+
+      function createCrownIcon() {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'crown-icon');
+        svg.setAttribute('viewBox', '0 0 48 36');
+        svg.setAttribute('aria-hidden', 'true');
+
+        const crown = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        crown.setAttribute('d', 'M6 30h36l-3-20-10 10-5-14-5 14L9 10 6 30Z');
+        crown.setAttribute('fill', '#fff8d6');
+        crown.setAttribute('stroke', '#6f4700');
+        crown.setAttribute('stroke-width', '3');
+        crown.setAttribute('stroke-linejoin', 'round');
+
+        const base = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        base.setAttribute('d', 'M8 30h32v4H8z');
+        base.setAttribute('fill', '#6f4700');
+
+        svg.appendChild(crown);
+        svg.appendChild(base);
+        return svg;
       }
 
       function getRankColorClass(rank) {
