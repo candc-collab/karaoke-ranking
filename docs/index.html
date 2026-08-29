@@ -97,6 +97,10 @@
         color: var(--text);
         border: 1px solid var(--line);
       }
+      button.mode-button.active {
+        outline: 3px solid rgba(0, 122, 90, 0.22);
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+      }
       button.ghost {
         background: transparent;
         color: var(--primary-dark);
@@ -558,8 +562,8 @@
         <div class="panel">
           <h2>スコアを登録</h2>
           <div class="entry-modes">
-            <button onclick="startImageEntry()">写真から登録</button>
-            <button class="secondary" onclick="startManualEntry()">手入力で登録</button>
+            <button id="imageModeButton" class="mode-button" onclick="startImageEntry()">写真から登録</button>
+            <button id="manualModeButton" class="secondary mode-button" onclick="startManualEntry()">手入力で登録</button>
           </div>
           <div id="photoPanel" class="photo-panel">
             <ul class="capture-guide">
@@ -934,7 +938,7 @@
       }
 
       function showScore() {
-        startManualEntry();
+        startImageEntry();
         showScreen('scoreScreen');
       }
 
@@ -949,6 +953,8 @@
         document.getElementById('imageInput').value = '';
         document.getElementById('imagePreview').className = 'image-preview';
         document.getElementById('imagePreview').removeAttribute('src');
+        document.getElementById('imageModeButton').className = 'mode-button secondary';
+        document.getElementById('manualModeButton').className = 'mode-button secondary active';
       }
 
       function startImageEntry() {
@@ -959,6 +965,8 @@
         document.getElementById('scoreSource').className = 'score-source';
         document.getElementById('scoreSource').textContent = '';
         document.getElementById('photoStatus').textContent = '写真を選んで、保存してから下の項目を入力してください。';
+        document.getElementById('imageModeButton').className = 'mode-button active';
+        document.getElementById('manualModeButton').className = 'mode-button secondary';
       }
 
       function previewSelectedImage() {
@@ -1106,7 +1114,8 @@
       }
 
       function showScoreConfirm() {
-        if (state.scoreInputType === 'image' && !state.pendingImage) {
+        const hasSavedImage = !!(state.pendingImage && state.pendingImage.image_file_id);
+        if (state.scoreInputType === 'image' && !hasSavedImage) {
           showError('写真を保存してから登録内容を確認してください。');
           return;
         }
@@ -1114,9 +1123,9 @@
           songTitle: document.getElementById('songTitleInput').value,
           artistName: document.getElementById('artistNameInput').value,
           score: document.getElementById('scoreInput').value,
-          inputType: state.scoreInputType
+          inputType: hasSavedImage ? 'image' : 'manual'
         };
-        if (state.scoreInputType === 'image' && state.pendingImage) {
+        if (hasSavedImage) {
           pendingScore.imageFileId = state.pendingImage.image_file_id;
           pendingScore.imageUrl = state.pendingImage.image_url;
         }
