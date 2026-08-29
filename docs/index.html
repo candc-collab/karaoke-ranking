@@ -103,6 +103,56 @@
         border: 1px solid var(--primary);
       }
       button:disabled { opacity: 0.55; }
+      .entry-modes {
+        display: grid;
+        gap: 10px;
+        margin: 4px 0 16px;
+      }
+      .photo-panel {
+        display: none;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfa;
+        margin-bottom: 16px;
+      }
+      .photo-panel.show { display: block; }
+      .capture-guide {
+        margin: 0 0 12px;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .capture-guide li { margin: 3px 0; }
+      .file-input {
+        min-height: auto;
+        padding: 10px;
+        background: #fff;
+      }
+      .image-preview {
+        display: none;
+        width: 100%;
+        margin: 12px 0;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .image-preview.show { display: block; }
+      .photo-status {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .score-source {
+        display: none;
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 8px;
+        background: #eef7f2;
+        color: var(--primary-dark);
+        font-weight: 800;
+      }
+      .score-source.show { display: block; }
       .actions,
       .nav {
         display: grid;
@@ -126,6 +176,21 @@
         overflow-wrap: anywhere;
       }
       .message.show { display: block; }
+      .diagnostic {
+        display: none;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 1px solid #f3b6b6;
+        background: #fff;
+        color: #7f1d1d;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+      .diagnostic.show {
+        display: block;
+      }
       .loading {
         display: grid;
         place-items: center;
@@ -420,6 +485,9 @@
         font-weight: 900;
         font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
         font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        width: 8.4ch;
+        text-align: right;
         white-space: nowrap;
       }
       .small-button {
@@ -443,6 +511,7 @@
         <span class="caption" id="userCaption"></span>
       </div>
       <div id="message" class="message"></div>
+      <div id="diagnosticBox" class="diagnostic"></div>
       <div id="processingOverlay" class="processing-overlay" aria-live="polite">
         <div class="processing-card">
           <div class="spinner"></div>
@@ -488,6 +557,22 @@
       <section id="scoreScreen" class="screen">
         <div class="panel">
           <h2>スコアを登録</h2>
+          <div class="entry-modes">
+            <button onclick="startImageEntry()">写真から登録</button>
+            <button class="secondary" onclick="startManualEntry()">手入力で登録</button>
+          </div>
+          <div id="photoPanel" class="photo-panel">
+            <ul class="capture-guide">
+              <li>採点結果画面全体を写す</li>
+              <li>曲名・歌手名・総合得点が見えるようにする</li>
+              <li>反射や斜め撮影を避ける</li>
+            </ul>
+            <input id="imageInput" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onchange="previewSelectedImage()">
+            <img id="imagePreview" class="image-preview" alt="選択した写真の確認">
+            <button id="imageUploadButton" class="ghost" onclick="uploadSelectedImage()">写真を保存して入力へ</button>
+            <div id="photoStatus" class="photo-status"></div>
+          </div>
+          <div id="scoreSource" class="score-source"></div>
           <label for="songTitleInput">曲名</label>
           <input id="songTitleInput">
           <label for="artistNameInput">歌手名</label>
@@ -504,6 +589,7 @@
       <section id="scoreConfirmScreen" class="screen">
         <div class="panel">
           <h2>この内容で登録しますか？</h2>
+          <div id="confirmSource" class="score-source"></div>
           <h3>曲名</h3>
           <p id="confirmSongTitle"></p>
           <h3>歌手名</h3>
@@ -636,6 +722,15 @@
       </section>
     </main>
 
+    <iframe id="imageUploadFrame" name="imageUploadFrame" style="display:none;"></iframe>
+    <form id="imageUploadForm" method="post" target="imageUploadFrame" style="display:none;">
+      <input type="hidden" name="action" value="uploadImage">
+      <input type="hidden" name="uploadToken" id="uploadTokenField">
+      <input type="hidden" name="idToken" id="uploadIdTokenField">
+      <input type="hidden" name="mimeType" id="uploadMimeTypeField">
+      <input type="hidden" name="imageData" id="uploadImageDataField">
+    </form>
+
     <script>
       const appConfig = window.KARAOKE_APP_CONFIG || {};
       const state = {
@@ -644,7 +739,10 @@
         currentMonth: '',
         rankingMonth: '',
         loadedRanking: null,
-        showingAllRanking: false
+        showingAllRanking: false,
+        scoreInputType: 'manual',
+        pendingImage: null,
+        uploadPollTimer: null
       };
       let pendingScore = null;
 
@@ -679,8 +777,9 @@
           if (payload) params.set('payload', JSON.stringify(payload));
           script.onerror = () => {
             cleanup();
-            reject(new Error('GAS APIを読み込めませんでした。URLを確認してください。'));
+            reject(new Error('GAS APIを読み込めませんでした。docs/config.jsのGAS_API_URLを確認してください。'));
           };
+          params.set('_', String(Date.now()));
           script.src = appConfig.GAS_API_URL + '?' + params.toString();
           document.body.appendChild(script);
         });
@@ -749,12 +848,38 @@
         const el = document.getElementById('message');
         el.textContent = text || '処理できませんでした。もう一度お試しください。';
         el.className = 'message show';
+        showDiagnosticIfNeeded(text || '');
       }
 
       function clearMessage() {
         const el = document.getElementById('message');
         el.textContent = '';
         el.className = 'message';
+        document.getElementById('diagnosticBox').className = 'diagnostic';
+      }
+
+      function showDiagnosticIfNeeded(text) {
+        if (!/GAS API|GAS WebアプリURL|サーバー/.test(text)) {
+          return;
+        }
+        const gasUrl = appConfig.GAS_API_URL || '未設定';
+        const sampleUrl = gasUrl && gasUrl !== '未設定'
+          ? gasUrl + '?api=publicConfig&callback=test'
+          : '未設定';
+        const box = document.getElementById('diagnosticBox');
+        box.textContent = [
+          '確認してください',
+          '1. docs/config.js の GAS_API_URL が最新の /exec URL になっている',
+          '2. Apps Script を新バージョンで再デプロイしている',
+          '3. Webアプリのアクセス権が「全員」になっている',
+          '',
+          '現在の GAS_API_URL:',
+          gasUrl,
+          '',
+          'ブラウザで開いて確認するURL:',
+          sampleUrl
+        ].join('\n');
+        box.className = 'diagnostic show';
       }
 
       function showProcessing(title, text) {
@@ -809,18 +934,203 @@
       }
 
       function showScore() {
+        startManualEntry();
         showScreen('scoreScreen');
       }
 
+      function startManualEntry() {
+        state.scoreInputType = 'manual';
+        state.pendingImage = null;
+        clearUploadTimer();
+        document.getElementById('photoPanel').classList.remove('show');
+        document.getElementById('scoreSource').className = 'score-source';
+        document.getElementById('scoreSource').textContent = '';
+        document.getElementById('photoStatus').textContent = '';
+        document.getElementById('imageInput').value = '';
+        document.getElementById('imagePreview').className = 'image-preview';
+        document.getElementById('imagePreview').removeAttribute('src');
+      }
+
+      function startImageEntry() {
+        state.scoreInputType = 'image';
+        state.pendingImage = null;
+        clearUploadTimer();
+        document.getElementById('photoPanel').classList.add('show');
+        document.getElementById('scoreSource').className = 'score-source';
+        document.getElementById('scoreSource').textContent = '';
+        document.getElementById('photoStatus').textContent = '写真を選んで、保存してから下の項目を入力してください。';
+      }
+
+      function previewSelectedImage() {
+        const file = document.getElementById('imageInput').files[0];
+        const preview = document.getElementById('imagePreview');
+        state.pendingImage = null;
+        document.getElementById('scoreSource').className = 'score-source';
+        document.getElementById('scoreSource').textContent = '';
+        document.getElementById('photoStatus').textContent = file ? '写真を確認して「写真を保存して入力へ」を押してください。' : '';
+        if (!file) {
+          preview.className = 'image-preview';
+          preview.removeAttribute('src');
+          return;
+        }
+        preview.src = URL.createObjectURL(file);
+        preview.className = 'image-preview show';
+      }
+
+      function uploadSelectedImage() {
+        const file = document.getElementById('imageInput').files[0];
+        if (!file) {
+          showError('写真を選んでください。');
+          return;
+        }
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+          showError('JPEG、PNG、WEBPの写真を選んでください。');
+          return;
+        }
+        if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
+          showError('GAS WebアプリURLが設定されていません。');
+          return;
+        }
+
+        const button = document.getElementById('imageUploadButton');
+        const uploadToken = createUploadToken();
+        button.disabled = true;
+        showProcessing('写真保存中です', 'Google Driveへ保存しています。');
+
+        const onMessage = (event) => {
+          const data = event.data || {};
+          if (data.type !== 'karaokeImageUpload' || data.uploadToken !== uploadToken) return;
+          window.removeEventListener('message', onMessage);
+          clearUploadTimer();
+          handleImageUploadResult(data.result, button);
+        };
+        window.addEventListener('message', onMessage);
+
+        resizeImageForUpload(file)
+          .then((dataUrl) => {
+            const base64 = dataUrl.split(',')[1] || '';
+            document.getElementById('uploadTokenField').value = uploadToken;
+            document.getElementById('uploadIdTokenField').value = state.idToken;
+            document.getElementById('uploadMimeTypeField').value = 'image/jpeg';
+            document.getElementById('uploadImageDataField').value = base64;
+            document.getElementById('imageUploadForm').action = appConfig.GAS_API_URL;
+            document.getElementById('imageUploadForm').submit();
+            pollUploadResult(uploadToken, button, onMessage);
+          })
+          .catch(() => {
+            window.removeEventListener('message', onMessage);
+            hideProcessing();
+            button.disabled = false;
+            showError('写真を読み込めませんでした。もう一度選んでください。');
+          });
+      }
+
+      function resizeImageForUpload(file) {
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          const url = URL.createObjectURL(file);
+          image.onload = () => {
+            URL.revokeObjectURL(url);
+            const maxSide = 1600;
+            const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.86));
+          };
+          image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('image load failed'));
+          };
+          image.src = url;
+        });
+      }
+
+      function pollUploadResult(uploadToken, button, onMessage) {
+        let count = 0;
+        clearUploadTimer();
+        state.uploadPollTimer = window.setInterval(async () => {
+          count += 1;
+          try {
+            const result = await apiCall('getUploadResult', { uploadToken: uploadToken });
+            if (result.ok && result.data.status === 'done') {
+              window.removeEventListener('message', onMessage);
+              clearUploadTimer();
+              handleImageUploadResult(result.data.result, button);
+            } else if (count >= 15) {
+              window.removeEventListener('message', onMessage);
+              clearUploadTimer();
+              hideProcessing();
+              button.disabled = false;
+              showError('写真保存の完了を確認できませんでした。通信状況を確認してもう一度お試しください。');
+            }
+          } catch (error) {
+            if (count >= 15) {
+              window.removeEventListener('message', onMessage);
+              clearUploadTimer();
+              hideProcessing();
+              button.disabled = false;
+              showError(error.message);
+            }
+          }
+        }, 1500);
+      }
+
+      function handleImageUploadResult(result, button) {
+        hideProcessing();
+        button.disabled = false;
+        if (!result || !result.ok) {
+          showError(result && result.message ? result.message : '写真を保存できませんでした。もう一度お試しください。');
+          return;
+        }
+        state.scoreInputType = 'image';
+        state.pendingImage = result.data;
+        const source = document.getElementById('scoreSource');
+        source.textContent = '写真を保存しました。内容を入力して確認へ進んでください。';
+        source.className = 'score-source show';
+        document.getElementById('photoStatus').textContent = '保存済みです。必要に応じて入力内容を修正できます。';
+      }
+
+      function clearUploadTimer() {
+        if (state.uploadPollTimer) {
+          window.clearInterval(state.uploadPollTimer);
+          state.uploadPollTimer = null;
+        }
+      }
+
+      function createUploadToken() {
+        const randomPart = Math.random().toString(36).slice(2);
+        return 'UP_' + Date.now().toString(36) + '_' + randomPart;
+      }
+
       function showScoreConfirm() {
+        if (state.scoreInputType === 'image' && !state.pendingImage) {
+          showError('写真を保存してから登録内容を確認してください。');
+          return;
+        }
         pendingScore = {
           songTitle: document.getElementById('songTitleInput').value,
           artistName: document.getElementById('artistNameInput').value,
-          score: document.getElementById('scoreInput').value
+          score: document.getElementById('scoreInput').value,
+          inputType: state.scoreInputType
         };
+        if (state.scoreInputType === 'image' && state.pendingImage) {
+          pendingScore.imageFileId = state.pendingImage.image_file_id;
+          pendingScore.imageUrl = state.pendingImage.image_url;
+        }
         document.getElementById('confirmSongTitle').textContent = pendingScore.songTitle || '未入力';
         document.getElementById('confirmArtistName').textContent = pendingScore.artistName || '未入力';
         document.getElementById('confirmScore').textContent = pendingScore.score ? pendingScore.score + '点' : '未入力';
+        const source = document.getElementById('confirmSource');
+        if (pendingScore.inputType === 'image') {
+          source.textContent = '写真から登録';
+          source.className = 'score-source show';
+        } else {
+          source.textContent = '';
+          source.className = 'score-source';
+        }
         showScreen('scoreConfirmScreen');
       }
 
@@ -829,7 +1139,8 @@
         button.disabled = true;
         showProcessing('登録中です', 'スコアを保存してランキングを更新しています。');
         try {
-          const result = await apiCall('submitManualScore', pendingScore);
+          const apiName = pendingScore && pendingScore.inputType === 'image' ? 'submitImageScore' : 'submitManualScore';
+          const result = await apiCall(apiName, pendingScore);
           if (!result.ok) {
             showScreen('scoreScreen');
             showError(result.message);
@@ -854,6 +1165,7 @@
         document.getElementById('artistNameInput').value = '';
         document.getElementById('scoreInput').value = '';
         pendingScore = null;
+        startManualEntry();
       }
 
       async function showRanking(month) {
