@@ -285,13 +285,44 @@
       }
       .history-row {
         display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 10px;
+        grid-template-columns: 1fr auto;
+        gap: 6px 12px;
         align-items: start;
-        padding: 12px 0;
+        padding: 14px 0;
         border-top: 1px solid var(--line);
       }
       .history-row:first-child { border-top: 0; }
+      .history-date {
+        grid-column: 1 / 2;
+        grid-row: 1;
+        color: var(--muted);
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .history-score {
+        grid-column: 2 / 3;
+        grid-row: 1 / 3;
+        align-self: start;
+        color: var(--red);
+        font-size: 18px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+      .history-title {
+        grid-column: 1 / 2;
+        grid-row: 2;
+        min-width: 0;
+        font-size: 17px;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+      }
+      .history-artist {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        color: var(--muted);
+        font-size: 14px;
+        overflow-wrap: anywhere;
+      }
       .score {
         font-weight: 900;
         white-space: nowrap;
@@ -812,14 +843,23 @@
         rows.forEach(row => {
           const item = document.createElement('div');
           item.className = 'history-row';
-          appendText(item, 'div', row.ranking_month, 'muted');
-          const body = document.createElement('div');
-          appendText(body, 'strong', row.song_title);
-          appendText(body, 'div', row.artist_name, 'muted');
-          item.appendChild(body);
-          appendText(item, 'div', formatScore(row.score), 'score');
+          appendText(item, 'div', formatSimpleDate(row.registered_at || row.ranking_month), 'history-date');
+          appendText(item, 'div', formatScore(row.score), 'history-score');
+          appendText(item, 'div', row.song_title, 'history-title');
+          appendText(item, 'div', row.artist_name, 'history-artist');
           list.appendChild(item);
         });
+      }
+
+      function formatSimpleDate(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          return String(value).slice(0, 10);
+        }
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return month + '/' + day;
       }
 
       async function changeNickname() {
