@@ -148,6 +148,36 @@
         border-radius: 50%;
         animation: spin 0.9s linear infinite;
       }
+      .processing-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: none;
+        place-items: center;
+        padding: 20px;
+        background: rgba(15, 23, 42, 0.42);
+      }
+      .processing-overlay.show {
+        display: grid;
+      }
+      .processing-card {
+        width: min(320px, 100%);
+        padding: 22px 18px;
+        border-radius: 8px;
+        background: #fff;
+        text-align: center;
+        box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+      }
+      .processing-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .processing-text {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
       .month-switcher {
         display: grid;
         grid-template-columns: 1fr 1.4fr 1fr;
@@ -297,6 +327,13 @@
         <span class="caption" id="userCaption"></span>
       </div>
       <div id="message" class="message"></div>
+      <div id="processingOverlay" class="processing-overlay" aria-live="polite">
+        <div class="processing-card">
+          <div class="spinner"></div>
+          <p class="processing-title" id="processingTitle">処理中です</p>
+          <p class="processing-text" id="processingText">少しだけお待ちください。</p>
+        </div>
+      </div>
 
       <section id="loadingScreen" class="loading">
         <div class="loading-card">
@@ -551,6 +588,7 @@
       }
 
       function showError(text) {
+        hideProcessing();
         document.getElementById('loadingScreen').style.display = 'none';
         const el = document.getElementById('message');
         el.textContent = text || '処理できませんでした。もう一度お試しください。';
@@ -561,6 +599,16 @@
         const el = document.getElementById('message');
         el.textContent = '';
         el.className = 'message';
+      }
+
+      function showProcessing(title, text) {
+        document.getElementById('processingTitle').textContent = title || '処理中です';
+        document.getElementById('processingText').textContent = text || '少しだけお待ちください。';
+        document.getElementById('processingOverlay').classList.add('show');
+      }
+
+      function hideProcessing() {
+        document.getElementById('processingOverlay').classList.remove('show');
       }
 
       function formatScore(value) {
@@ -575,6 +623,7 @@
       async function registerNicknameFromForm() {
         const button = document.getElementById('nicknameSubmit');
         button.disabled = true;
+        showProcessing('登録中です', 'ニックネームを保存しています。');
         try {
           const result = await apiCall('registerNickname', {
             nickname: document.getElementById('nicknameInput').value
@@ -587,6 +636,7 @@
           updateUserCaption();
           await showHome();
         } finally {
+          hideProcessing();
           button.disabled = false;
         }
       }
@@ -621,6 +671,7 @@
       async function submitScore() {
         const button = document.getElementById('scoreSubmit');
         button.disabled = true;
+        showProcessing('登録中です', 'スコアを保存してランキングを更新しています。');
         try {
           const result = await apiCall('submitManualScore', pendingScore);
           if (!result.ok) {
@@ -628,12 +679,16 @@
             showError(result.message);
             return;
           }
+          state.currentMonth = result.data.rankingMonth || state.currentMonth;
+          state.rankingMonth = state.currentMonth;
+          state.loadedRanking = null;
           document.getElementById('completeScore').textContent =
             result.data.score.song_title_raw + ' / ' + result.data.score.artist_name_raw + ' ' + formatScore(result.data.score.score);
           document.getElementById('completeBest').textContent = result.data.monthlyBest ? formatScore(result.data.monthlyBest.score) : '未登録';
           document.getElementById('completeRank').textContent = result.data.monthlyBest ? result.data.monthlyBest.rank + '位' : '順位はまだありません';
           showScreen('scoreCompleteScreen');
         } finally {
+          hideProcessing();
           button.disabled = false;
         }
       }
@@ -646,16 +701,21 @@
       }
 
       async function showRanking(month) {
-        const targetMonth = month || state.rankingMonth || state.currentMonth;
-        const result = await apiCall('ranking', { rankingMonth: targetMonth });
-        if (!result.ok) {
-          showError(result.message);
-          return;
+        const targetMonth = month || state.currentMonth || state.rankingMonth;
+        showProcessing('ランキング読込中です', '最新の順位を確認しています。');
+        try {
+          const result = await apiCall('ranking', { rankingMonth: targetMonth });
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.loadedRanking = result.data;
+          state.rankingMonth = result.data.rankingMonth;
+          renderRanking(false);
+          showScreen('rankingScreen');
+        } finally {
+          hideProcessing();
         }
-        state.loadedRanking = result.data;
-        state.rankingMonth = result.data.rankingMonth;
-        renderRanking(false);
-        showScreen('rankingScreen');
       }
 
       function renderRanking(showAll) {
@@ -722,19 +782,24 @@
       }
 
       async function showMyPage() {
-        const result = await apiCall('mypage');
-        if (!result.ok) {
-          showError(result.message);
-          return;
+        showProcessing('読込中です', 'マイページを更新しています。');
+        try {
+          const result = await apiCall('mypage');
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          const data = result.data;
+          document.getElementById('mypageRank').textContent = data.current_month_rank ? data.current_month_rank + '位' : '-';
+          document.getElementById('mypageMonthBest').textContent = formatScore(data.current_month_best_score);
+          document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
+          document.getElementById('mypageTotal').textContent = data.total_score_count + '回';
+          document.getElementById('nicknameChangeInput').value = data.nickname || '';
+          renderRecentScores(data.recent_scores || []);
+          showScreen('mypageScreen');
+        } finally {
+          hideProcessing();
         }
-        const data = result.data;
-        document.getElementById('mypageRank').textContent = data.current_month_rank ? data.current_month_rank + '位' : '-';
-        document.getElementById('mypageMonthBest').textContent = formatScore(data.current_month_best_score);
-        document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
-        document.getElementById('mypageTotal').textContent = data.total_score_count + '回';
-        document.getElementById('nicknameChangeInput').value = data.nickname || '';
-        renderRecentScores(data.recent_scores || []);
-        showScreen('mypageScreen');
       }
 
       function renderRecentScores(rows) {
@@ -760,6 +825,7 @@
       async function changeNickname() {
         const button = document.getElementById('nicknameChangeButton');
         button.disabled = true;
+        showProcessing('変更中です', 'ニックネームを保存しています。');
         try {
           const result = await apiCall('updateNickname', {
             nickname: document.getElementById('nicknameChangeInput').value
@@ -772,6 +838,7 @@
           updateUserCaption();
           await showMyPage();
         } finally {
+          hideProcessing();
           button.disabled = false;
         }
       }
