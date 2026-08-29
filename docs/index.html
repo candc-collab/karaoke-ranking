@@ -1095,10 +1095,40 @@
         }
         state.scoreInputType = 'image';
         state.pendingImage = result.data;
+        applyImageReading(result.data.reading);
         const source = document.getElementById('scoreSource');
-        source.textContent = '写真を保存しました。内容を入力して確認へ進んでください。';
+        source.textContent = createReadingStatusText(result.data.reading);
         source.className = 'score-source show';
-        document.getElementById('photoStatus').textContent = '保存済みです。必要に応じて入力内容を修正できます。';
+        document.getElementById('photoStatus').textContent = '保存済みです。自動読み取り結果を確認して、必要に応じて修正してください。';
+      }
+
+      function applyImageReading(readingResult) {
+        const reading = readingResult && readingResult.ok ? readingResult.data : null;
+        if (!reading) return;
+        if (reading.song_title) {
+          document.getElementById('songTitleInput').value = reading.song_title;
+        }
+        if (reading.artist_name) {
+          document.getElementById('artistNameInput').value = reading.artist_name;
+        }
+        if (reading.score !== null && typeof reading.score !== 'undefined') {
+          document.getElementById('scoreInput').value = Number(reading.score).toFixed(3);
+        }
+      }
+
+      function createReadingStatusText(readingResult) {
+        if (!readingResult || !readingResult.ok) {
+          return '写真を保存しました。' + ((readingResult && readingResult.message) || 'OCRで読み取れなかったため、手入力してください。');
+        }
+        const reading = readingResult.data || {};
+        const count = [reading.song_title, reading.artist_name, reading.score].filter(value => value !== null && typeof value !== 'undefined' && value !== '').length;
+        if (count === 3) {
+          return '自動読み取りしました。内容を確認して、違うところがあれば修正してください。';
+        }
+        if (count > 0) {
+          return '一部を自動読み取りしました。空欄を入力し、違うところがあれば修正してください。';
+        }
+        return '写真を保存しました。OCRで読み取れなかったため、手入力してください。';
       }
 
       function clearUploadTimer() {
