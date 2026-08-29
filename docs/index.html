@@ -247,8 +247,25 @@
         font-weight: 900;
         border-right: 4px solid var(--gold);
       }
+      .rank-number.first-place {
+        grid-template-rows: auto auto;
+        align-content: center;
+        gap: 2px;
+        font-size: 22px;
+      }
+      .crown {
+        color: #fff7d6;
+        font-size: 18px;
+        line-height: 1;
+        text-shadow: 0 1px 2px rgba(64, 32, 0, 0.45);
+      }
       .gold-rank .rank-number {
         background: linear-gradient(180deg, #f4d35e, #b77900);
+      }
+      .gold-rank .rank-number.first-place {
+        background: linear-gradient(180deg, #fff1a8 0%, #e1a700 48%, #8a5a00 100%);
+        border-right-color: #f8d84a;
+        box-shadow: inset 0 0 0 2px rgba(255, 248, 210, 0.45);
       }
       .silver-rank .rank-number {
         background: linear-gradient(180deg, #f8fafc, #94a3b8);
@@ -786,7 +803,7 @@
           rows.forEach(row => {
             const item = document.createElement('div');
             item.className = 'rank-show-row ' + getRankColorClass(row.rank);
-            appendText(item, 'div', row.rank, 'rank-number');
+            appendRankNumber(item, row.rank);
             const body = document.createElement('div');
             body.className = 'rank-content';
             const main = document.createElement('div');
@@ -807,6 +824,19 @@
         const el = document.createElement(tag);
         el.textContent = text;
         if (className) el.className = className;
+        parent.appendChild(el);
+        return el;
+      }
+
+      function appendRankNumber(parent, rank) {
+        const el = document.createElement('div');
+        el.className = 'rank-number' + (rank === 1 ? ' first-place' : '');
+        if (rank === 1) {
+          appendText(el, 'span', '♛', 'crown');
+          appendText(el, 'span', '1');
+        } else {
+          el.textContent = rank;
+        }
         parent.appendChild(el);
         return el;
       }
