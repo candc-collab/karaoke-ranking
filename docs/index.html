@@ -1144,7 +1144,7 @@
       }
 
       function showScoreConfirm() {
-        const hasSavedImage = !!(state.pendingImage && state.pendingImage.image_file_id);
+        const hasSavedImage = !!(state.pendingImage && (state.pendingImage.image_file_id || state.pendingImage.image_deleted));
         if (state.scoreInputType === 'image' && !hasSavedImage) {
           showError('写真を保存してから登録内容を確認してください。');
           return;
@@ -1158,6 +1158,7 @@
         if (hasSavedImage) {
           pendingScore.imageFileId = state.pendingImage.image_file_id;
           pendingScore.imageUrl = state.pendingImage.image_url;
+          pendingScore.imageDeleted = state.pendingImage.image_deleted === true;
         }
         document.getElementById('confirmSongTitle').textContent = pendingScore.songTitle || '未入力';
         document.getElementById('confirmArtistName').textContent = pendingScore.artistName || '未入力';
