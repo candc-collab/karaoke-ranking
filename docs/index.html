@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>カラオケランキング</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="./config.js"></script>
+    <style>
+      :root {
+        --bg: #f2f4f7;
+        --surface: #ffffff;
+        --text: #17202a;
+        --muted: #687385;
+        --line: #d8dee8;
+        --primary: #007a5a;
+        --primary-dark: #005f49;
+        --danger: #b91c1c;
+        --gold: #d6a21e;
+        --navy: #16213e;
+        --red: #c1121f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #eef4f8 0, #f7f7f2 220px, var(--bg) 100%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        -webkit-text-size-adjust: 100%;
+      }
+      .app {
+        width: 100%;
+        max-width: 520px;
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 14px 12px calc(28px + env(safe-area-inset-bottom));
+      }
+      .topbar { margin-bottom: 14px; }
+      .shop-name {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 900;
+      }
+      .caption {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .screen { display: none; }
+      .screen.active { display: block; }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 8px 20px rgba(31, 41, 55, 0.05);
+      }
+      h2 {
+        margin: 0 0 14px;
+        font-size: 20px;
+      }
+      h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+      label {
+        display: block;
+        margin: 14px 0 6px;
+        font-weight: 700;
+      }
+      input {
+        width: 100%;
+        min-height: 52px;
+        border: 1px solid #bdc7b9;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 17px;
+        background: #fff;
+      }
+      button {
+        width: 100%;
+        min-height: 52px;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 12px;
+        font-size: 16px;
+        font-weight: 800;
+        background: var(--primary);
+        color: #fff;
+        touch-action: manipulation;
+      }
+      button.secondary {
+        background: #eef2ea;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--primary-dark);
+        border: 1px solid var(--primary);
+      }
+      button:disabled { opacity: 0.55; }
+      .actions,
+      .nav {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .hero-score {
+        font-size: 34px;
+        font-weight: 900;
+        letter-spacing: 0;
+      }
+      .muted { color: var(--muted); }
+      .message {
+        display: none;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        background: #fef2f2;
+        color: var(--danger);
+        overflow-wrap: anywhere;
+      }
+      .message.show { display: block; }
+      .loading {
+        display: grid;
+        place-items: center;
+        min-height: 70vh;
+        color: var(--muted);
+        text-align: center;
+      }
+      .loading-card {
+        width: 100%;
+        padding: 18px;
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid var(--line);
+      }
+      .spinner {
+        width: 32px;
+        height: 32px;
+        margin: 0 auto 12px;
+        border: 4px solid #dfe5ee;
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      .month-switcher {
+        display: grid;
+        grid-template-columns: 1fr 1.4fr 1fr;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .month-label {
+        text-align: center;
+        font-weight: 900;
+      }
+      .rank-show {
+        overflow: hidden;
+        border: 0;
+        padding: 0;
+        background: #09111f;
+        color: #fff;
+      }
+      .rank-show .month-switcher {
+        margin: 0;
+        padding: 12px;
+        background: #ffffff;
+        color: var(--text);
+      }
+      .rank-show-header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 14px 14px 12px;
+        background: linear-gradient(135deg, var(--navy), #273469 55%, var(--red));
+        border-bottom: 4px solid var(--gold);
+      }
+      .rank-show-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .rank-show-subtitle {
+        margin: 2px 0 0;
+        color: #f4d06f;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .rank-show-list {
+        background: #f8fafc;
+        color: var(--text);
+        min-height: 80px;
+      }
+      .rank-show-row {
+        display: grid;
+        grid-template-columns: 54px 1fr;
+        min-height: 74px;
+        border-bottom: 1px solid #dde3ed;
+        background: #fff;
+      }
+      .rank-show-row:nth-child(even) { background: #f7f9fc; }
+      .rank-show-row.top-rank { background: linear-gradient(90deg, #fff7d6, #ffffff 55%); }
+      .rank-number {
+        display: grid;
+        place-items: center;
+        background: #1f2a44;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 900;
+        border-right: 4px solid var(--gold);
+      }
+      .top-rank .rank-number {
+        background: linear-gradient(180deg, #d6a21e, #9a6400);
+      }
+      .rank-content {
+        min-width: 0;
+        padding: 9px 10px;
+      }
+      .rank-main-line {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .rank-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 17px;
+        font-weight: 900;
+      }
+      .rank-score {
+        color: var(--red);
+        font-size: 18px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+      .rank-song {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .my-rank-box {
+        background: #fff;
+        color: var(--text);
+        border: 2px solid var(--gold);
+      }
+      .history-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: start;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .history-row:first-child { border-top: 0; }
+      .score {
+        font-weight: 900;
+        white-space: nowrap;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .stat {
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfa;
+      }
+      .stat-value {
+        display: block;
+        font-size: 22px;
+        font-weight: 900;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (min-width: 430px) {
+        .nav { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <div class="topbar">
+        <p class="shop-name" id="shopName">カラオケランキング</p>
+        <span class="caption" id="userCaption"></span>
+      </div>
+      <div id="message" class="message"></div>
+
+      <section id="loadingScreen" class="loading">
+        <div class="loading-card">
+          <div class="spinner"></div>
+          <div id="loadingText">読み込み中...</div>
+        </div>
+      </section>
+
+      <section id="nicknameScreen" class="screen">
+        <div class="panel">
+          <h2>はじめにニックネームを登録してください。</h2>
+          <p class="muted">この名前はランキングに表示されます。</p>
+          <label for="nicknameInput">ニックネーム</label>
+          <input id="nicknameInput" autocomplete="nickname" maxlength="40">
+          <div class="actions">
+            <button id="nicknameSubmit" onclick="registerNicknameFromForm()">登録する</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="homeScreen" class="screen">
+        <div class="panel">
+          <h2>今月のあなた</h2>
+          <div class="muted">最高得点</div>
+          <div class="hero-score" id="homeBest">未登録</div>
+          <div id="homeRank" class="muted">順位はまだありません</div>
+        </div>
+        <div class="nav">
+          <button onclick="showScore()">スコア登録</button>
+          <button class="secondary" onclick="showRanking()">今月ランキング</button>
+          <button class="secondary" onclick="showMyPage()">マイページ</button>
+        </div>
+      </section>
+
+      <section id="scoreScreen" class="screen">
+        <div class="panel">
+          <h2>スコアを登録</h2>
+          <label for="songTitleInput">曲名</label>
+          <input id="songTitleInput">
+          <label for="artistNameInput">歌手名</label>
+          <input id="artistNameInput">
+          <label for="scoreInput">点数</label>
+          <input id="scoreInput" inputmode="decimal" placeholder="95.000">
+          <div class="actions">
+            <button onclick="showScoreConfirm()">登録内容を確認</button>
+            <button class="secondary" onclick="showHome()">戻る</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="scoreConfirmScreen" class="screen">
+        <div class="panel">
+          <h2>この内容で登録しますか？</h2>
+          <h3>曲名</h3>
+          <p id="confirmSongTitle"></p>
+          <h3>歌手名</h3>
+          <p id="confirmArtistName"></p>
+          <h3>点数</h3>
+          <p id="confirmScore"></p>
+          <div class="actions">
+            <button id="scoreSubmit" onclick="submitScore()">登録する</button>
+            <button class="secondary" onclick="showScreen('scoreScreen')">修正する</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="scoreCompleteScreen" class="screen">
+        <div class="panel">
+          <h2>登録しました。</h2>
+          <p id="completeScore"></p>
+          <h3>現在のあなたの今月最高得点</h3>
+          <p class="hero-score" id="completeBest"></p>
+          <h3>現在順位</h3>
+          <p id="completeRank"></p>
+          <div class="actions">
+            <button onclick="showRanking()">今月ランキングを見る</button>
+            <button class="secondary" onclick="resetScoreForm(); showScore();">続けて登録する</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="rankingScreen" class="screen">
+        <div class="panel rank-show">
+          <div class="month-switcher">
+            <button class="secondary" onclick="moveRankingMonth(-1)">前月</button>
+            <div class="month-label" id="rankingMonthLabel"></div>
+            <button class="secondary" id="nextMonthButton" onclick="moveRankingMonth(1)">次月</button>
+          </div>
+          <div class="rank-show-header">
+            <div>
+              <h2 class="rank-show-title">MONTHLY BEST 10</h2>
+              <p class="rank-show-subtitle">月間総合ランキング</p>
+            </div>
+            <div class="caption">SCORE</div>
+          </div>
+          <div id="rankingList" class="rank-show-list"></div>
+        </div>
+        <div id="myRankBox" class="panel my-rank-box"></div>
+        <div class="panel">
+          <div class="actions">
+            <button id="showAllRankingButton" class="ghost" onclick="renderRanking(true)">全ランキングを見る</button>
+            <button class="secondary" onclick="showHome()">戻る</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="mypageScreen" class="screen">
+        <div class="panel">
+          <h2>マイページ</h2>
+          <div class="stats">
+            <div class="stat">
+              <span class="muted">今月順位</span>
+              <span class="stat-value" id="mypageRank">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">今月最高</span>
+              <span class="stat-value" id="mypageMonthBest">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">歴代最高</span>
+              <span class="stat-value" id="mypageAllBest">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">累計回数</span>
+              <span class="stat-value" id="mypageTotal">-</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>ニックネーム</h3>
+          <label for="nicknameChangeInput">ニックネーム</label>
+          <input id="nicknameChangeInput">
+          <div class="actions">
+            <button id="nicknameChangeButton" onclick="changeNickname()">ニックネーム変更</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>最近の歌唱履歴</h3>
+          <div id="recentScores"></div>
+          <div class="actions">
+            <button class="secondary" onclick="showHome()">戻る</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const appConfig = window.KARAOKE_APP_CONFIG || {};
+      const state = {
+        idToken: '',
+        user: null,
+        currentMonth: '',
+        rankingMonth: '',
+        loadedRanking: null,
+        showingAllRanking: false
+      };
+      let pendingScore = null;
+
+      function apiCall(apiName, payload) {
+        return new Promise((resolve, reject) => {
+          if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
+            reject(new Error('GAS WebアプリURLが設定されていません。'));
+            return;
+          }
+          const callbackName = '__karaokeApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+          const script = document.createElement('script');
+          const timerId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error('サーバーから返事がありません。GAS WebアプリURLを確認してください。'));
+          }, 20000);
+
+          window[callbackName] = (result) => {
+            cleanup();
+            resolve(result);
+          };
+
+          function cleanup() {
+            window.clearTimeout(timerId);
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+          }
+
+          const params = new URLSearchParams();
+          params.set('api', apiName);
+          params.set('callback', callbackName);
+          if (state.idToken) params.set('idToken', state.idToken);
+          if (payload) params.set('payload', JSON.stringify(payload));
+          script.onerror = () => {
+            cleanup();
+            reject(new Error('GAS APIを読み込めませんでした。URLを確認してください。'));
+          };
+          script.src = appConfig.GAS_API_URL + '?' + params.toString();
+          document.body.appendChild(script);
+        });
+      }
+
+      async function start() {
+        try {
+          if (!appConfig.LIFF_ID || appConfig.LIFF_ID === 'YOUR_LIFF_ID') {
+            showError('LIFF IDが設定されていません。docs/config.jsを確認してください。');
+            return;
+          }
+          if (!window.liff) {
+            showError('LIFFを読み込めませんでした。LINE内ブラウザで開いてください。');
+            return;
+          }
+
+          await liff.init({ liffId: appConfig.LIFF_ID });
+          if (!liff.isLoggedIn()) {
+            liff.login();
+            return;
+          }
+          state.idToken = liff.getIDToken();
+          if (!state.idToken) {
+            showError('LINEログイン情報を取得できませんでした。LIFFのScopeにopenidを追加してください。');
+            return;
+          }
+
+          const publicConfig = await apiCall('publicConfig');
+          if (publicConfig.ok && publicConfig.data.shopName) {
+            document.getElementById('shopName').textContent = publicConfig.data.shopName;
+          }
+
+          const result = await apiCall('bootstrap');
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.user = result.data.bootstrap.user;
+          state.currentMonth = result.data.rankingMonth;
+          state.rankingMonth = result.data.rankingMonth;
+          if (result.data.bootstrap.needsNickname) {
+            showScreen('nicknameScreen');
+            return;
+          }
+          if (!result.data.bootstrap.isActive) {
+            showError('現在このアカウントは利用できません。');
+            return;
+          }
+          updateUserCaption();
+          await showHome();
+        } catch (error) {
+          showError(error.message);
+        }
+      }
+
+      function showScreen(id) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        clearMessage();
+      }
+
+      function showError(text) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        const el = document.getElementById('message');
+        el.textContent = text || '処理できませんでした。もう一度お試しください。';
+        el.className = 'message show';
+      }
+
+      function clearMessage() {
+        const el = document.getElementById('message');
+        el.textContent = '';
+        el.className = 'message';
+      }
+
+      function formatScore(value) {
+        if (value === null || typeof value === 'undefined' || value === '') return '未登録';
+        return Number(value).toFixed(3) + '点';
+      }
+
+      function updateUserCaption() {
+        document.getElementById('userCaption').textContent = state.user ? state.user.nickname : '';
+      }
+
+      async function registerNicknameFromForm() {
+        const button = document.getElementById('nicknameSubmit');
+        button.disabled = true;
+        try {
+          const result = await apiCall('registerNickname', {
+            nickname: document.getElementById('nicknameInput').value
+          });
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.user = result.data.user;
+          updateUserCaption();
+          await showHome();
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      async function showHome() {
+        const result = await apiCall('mypage');
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        document.getElementById('homeBest').textContent = formatScore(result.data.current_month_best_score);
+        document.getElementById('homeRank').textContent = result.data.current_month_rank ? '現在 ' + result.data.current_month_rank + '位' : '順位はまだありません';
+        showScreen('homeScreen');
+      }
+
+      function showScore() {
+        showScreen('scoreScreen');
+      }
+
+      function showScoreConfirm() {
+        pendingScore = {
+          songTitle: document.getElementById('songTitleInput').value,
+          artistName: document.getElementById('artistNameInput').value,
+          score: document.getElementById('scoreInput').value
+        };
+        document.getElementById('confirmSongTitle').textContent = pendingScore.songTitle || '未入力';
+        document.getElementById('confirmArtistName').textContent = pendingScore.artistName || '未入力';
+        document.getElementById('confirmScore').textContent = pendingScore.score ? pendingScore.score + '点' : '未入力';
+        showScreen('scoreConfirmScreen');
+      }
+
+      async function submitScore() {
+        const button = document.getElementById('scoreSubmit');
+        button.disabled = true;
+        try {
+          const result = await apiCall('submitManualScore', pendingScore);
+          if (!result.ok) {
+            showScreen('scoreScreen');
+            showError(result.message);
+            return;
+          }
+          document.getElementById('completeScore').textContent =
+            result.data.score.song_title_raw + ' / ' + result.data.score.artist_name_raw + ' ' + formatScore(result.data.score.score);
+          document.getElementById('completeBest').textContent = result.data.monthlyBest ? formatScore(result.data.monthlyBest.score) : '未登録';
+          document.getElementById('completeRank').textContent = result.data.monthlyBest ? result.data.monthlyBest.rank + '位' : '順位はまだありません';
+          showScreen('scoreCompleteScreen');
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      function resetScoreForm() {
+        document.getElementById('songTitleInput').value = '';
+        document.getElementById('artistNameInput').value = '';
+        document.getElementById('scoreInput').value = '';
+        pendingScore = null;
+      }
+
+      async function showRanking(month) {
+        const targetMonth = month || state.rankingMonth || state.currentMonth;
+        const result = await apiCall('ranking', { rankingMonth: targetMonth });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        state.loadedRanking = result.data;
+        state.rankingMonth = result.data.rankingMonth;
+        renderRanking(false);
+        showScreen('rankingScreen');
+      }
+
+      function renderRanking(showAll) {
+        const loadedRanking = state.loadedRanking;
+        if (!loadedRanking) return;
+        state.showingAllRanking = !!showAll;
+        document.getElementById('rankingMonthLabel').textContent = loadedRanking.displayMonth;
+        document.getElementById('nextMonthButton').disabled = loadedRanking.nextMonth > loadedRanking.currentMonth;
+
+        const myRankBox = document.getElementById('myRankBox');
+        if (loadedRanking.myRank) {
+          myRankBox.innerHTML = '';
+          appendText(myRankBox, 'h3', 'あなたの現在順位');
+          appendText(myRankBox, 'p', loadedRanking.myRank.rank + '位 ' + loadedRanking.myRank.nickname + ' ' + formatScore(loadedRanking.myRank.score));
+          appendText(myRankBox, 'p', loadedRanking.myRank.song_title + ' / ' + loadedRanking.myRank.artist_name, 'muted');
+        } else {
+          myRankBox.textContent = 'この月のあなたの記録はまだありません。';
+        }
+
+        const rows = state.showingAllRanking ? loadedRanking.all : loadedRanking.top;
+        const list = document.getElementById('rankingList');
+        list.innerHTML = '';
+        if (rows.length === 0) {
+          list.textContent = 'この月の記録はまだありません。';
+        } else {
+          rows.forEach(row => {
+            const item = document.createElement('div');
+            item.className = 'rank-show-row' + (row.rank <= 3 ? ' top-rank' : '');
+            appendText(item, 'div', row.rank, 'rank-number');
+            const body = document.createElement('div');
+            body.className = 'rank-content';
+            const main = document.createElement('div');
+            main.className = 'rank-main-line';
+            appendText(main, 'div', row.nickname || '名無し', 'rank-name');
+            appendText(main, 'div', formatScore(row.score), 'rank-score');
+            body.appendChild(main);
+            appendText(body, 'div', row.song_title + ' / ' + row.artist_name, 'rank-song');
+            item.appendChild(body);
+            list.appendChild(item);
+          });
+        }
+        document.getElementById('showAllRankingButton').style.display =
+          loadedRanking.all.length > loadedRanking.top.length && !state.showingAllRanking ? 'block' : 'none';
+      }
+
+      function appendText(parent, tag, text, className) {
+        const el = document.createElement(tag);
+        el.textContent = text;
+        if (className) el.className = className;
+        parent.appendChild(el);
+        return el;
+      }
+
+      async function moveRankingMonth(amount) {
+        const nextMonth = addMonthText(state.rankingMonth, amount);
+        if (nextMonth > state.currentMonth) return;
+        await showRanking(nextMonth);
+      }
+
+      function addMonthText(month, amount) {
+        const parts = month.split('-').map(Number);
+        const date = new Date(parts[0], parts[1] - 1 + amount, 1);
+        return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+      }
+
+      async function showMyPage() {
+        const result = await apiCall('mypage');
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        const data = result.data;
+        document.getElementById('mypageRank').textContent = data.current_month_rank ? data.current_month_rank + '位' : '-';
+        document.getElementById('mypageMonthBest').textContent = formatScore(data.current_month_best_score);
+        document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
+        document.getElementById('mypageTotal').textContent = data.total_score_count + '回';
+        document.getElementById('nicknameChangeInput').value = data.nickname || '';
+        renderRecentScores(data.recent_scores || []);
+        showScreen('mypageScreen');
+      }
+
+      function renderRecentScores(rows) {
+        const list = document.getElementById('recentScores');
+        list.innerHTML = '';
+        if (rows.length === 0) {
+          list.textContent = '歌唱履歴はまだありません。';
+          return;
+        }
+        rows.forEach(row => {
+          const item = document.createElement('div');
+          item.className = 'history-row';
+          appendText(item, 'div', row.ranking_month, 'muted');
+          const body = document.createElement('div');
+          appendText(body, 'strong', row.song_title);
+          appendText(body, 'div', row.artist_name, 'muted');
+          item.appendChild(body);
+          appendText(item, 'div', formatScore(row.score), 'score');
+          list.appendChild(item);
+        });
+      }
+
+      async function changeNickname() {
+        const button = document.getElementById('nicknameChangeButton');
+        button.disabled = true;
+        try {
+          const result = await apiCall('updateNickname', {
+            nickname: document.getElementById('nicknameChangeInput').value
+          });
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.user = result.data.user;
+          updateUserCaption();
+          await showMyPage();
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      window.addEventListener('load', start);
+    </script>
+  </body>
+</html>
