@@ -385,6 +385,49 @@
         font-size: 22px;
         font-weight: 900;
       }
+      .result-row,
+      .song-best-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 12px;
+        align-items: center;
+        padding: 14px 0;
+        border-top: 1px solid var(--line);
+      }
+      .result-row:first-child,
+      .song-best-row:first-child {
+        border-top: 0;
+      }
+      .result-title,
+      .song-best-title {
+        min-width: 0;
+        font-size: 17px;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+      }
+      .result-artist,
+      .song-best-artist {
+        grid-column: 1 / 2;
+        color: var(--muted);
+        font-size: 14px;
+        overflow-wrap: anywhere;
+      }
+      .song-best-score {
+        grid-column: 2 / 3;
+        grid-row: 1 / 3;
+        color: var(--red);
+        font-size: 18px;
+        font-weight: 900;
+        font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .small-button {
+        width: auto;
+        min-height: 42px;
+        padding: 8px 12px;
+        font-size: 14px;
+      }
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
@@ -437,6 +480,7 @@
         <div class="nav">
           <button onclick="showScore()">スコア登録</button>
           <button class="secondary" onclick="showRanking()">今月ランキング</button>
+          <button class="secondary" onclick="showSearch()">曲を検索</button>
           <button class="secondary" onclick="showMyPage()">マイページ</button>
         </div>
       </section>
@@ -513,6 +557,41 @@
         </div>
       </section>
 
+      <section id="searchScreen" class="screen">
+        <div class="panel">
+          <h2>曲名を検索</h2>
+          <label for="songSearchInput">曲名・歌手名</label>
+          <input id="songSearchInput" placeholder="糸">
+          <div class="actions">
+            <button onclick="searchSongsFromForm()">検索</button>
+            <button class="secondary" onclick="showHome()">戻る</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>検索結果</h3>
+          <div id="songSearchResults">曲名または歌手名を入力してください。</div>
+        </div>
+      </section>
+
+      <section id="songRankingScreen" class="screen">
+        <div class="panel rank-show">
+          <div class="rank-show-header">
+            <div>
+              <h2 class="rank-show-title" id="songRankingTitle">曲別ランキング</h2>
+              <p class="rank-show-subtitle" id="songRankingArtist"></p>
+            </div>
+            <div class="caption">BEST</div>
+          </div>
+          <div id="songRankingList" class="rank-show-list"></div>
+        </div>
+        <div class="panel">
+          <div class="actions">
+            <button class="secondary" onclick="showSearch()">検索に戻る</button>
+            <button class="secondary" onclick="showHome()">ホームに戻る</button>
+          </div>
+        </div>
+      </section>
+
       <section id="mypageScreen" class="screen">
         <div class="panel">
           <h2>マイページ</h2>
@@ -542,6 +621,10 @@
           <div class="actions">
             <button id="nicknameChangeButton" onclick="changeNickname()">ニックネーム変更</button>
           </div>
+        </div>
+        <div class="panel">
+          <h3>曲別自己ベスト</h3>
+          <div id="songBests"></div>
         </div>
         <div class="panel">
           <h3>最近の歌唱履歴</h3>
@@ -909,6 +992,7 @@
           document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
           document.getElementById('mypageTotal').textContent = data.total_score_count + '回';
           document.getElementById('nicknameChangeInput').value = data.nickname || '';
+          renderSongBests(data.song_bests || []);
           renderRecentScores(data.recent_scores || []);
           showScreen('mypageScreen');
         } finally {
@@ -934,6 +1018,23 @@
         });
       }
 
+      function renderSongBests(rows) {
+        const list = document.getElementById('songBests');
+        list.innerHTML = '';
+        if (rows.length === 0) {
+          list.textContent = '曲別自己ベストはまだありません。';
+          return;
+        }
+        rows.forEach(row => {
+          const item = document.createElement('div');
+          item.className = 'song-best-row';
+          appendText(item, 'div', row.song_title, 'song-best-title');
+          appendText(item, 'div', formatScore(row.score), 'song-best-score');
+          appendText(item, 'div', row.artist_name + ' / ' + formatRankingMonthLabel(row.ranking_month), 'song-best-artist');
+          list.appendChild(item);
+        });
+      }
+
       function formatSimpleDate(value) {
         if (!value) return '';
         const date = new Date(value);
@@ -943,6 +1044,96 @@
         const month = date.getMonth() + 1;
         const day = date.getDate();
         return month + '/' + day;
+      }
+
+      function formatRankingMonthLabel(value) {
+        if (!value) return '';
+        const parts = String(value).split('-');
+        if (parts.length !== 2) return String(value);
+        return Number(parts[0]) + '年' + Number(parts[1]) + '月';
+      }
+
+      function showSearch() {
+        showScreen('searchScreen');
+      }
+
+      async function searchSongsFromForm() {
+        const keyword = document.getElementById('songSearchInput').value;
+        showProcessing('検索中です', '曲を探しています。');
+        try {
+          const result = await apiCall('searchSongs', { keyword: keyword });
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          renderSongSearchResults(result.data.songs || []);
+        } finally {
+          hideProcessing();
+        }
+      }
+
+      function renderSongSearchResults(rows) {
+        const list = document.getElementById('songSearchResults');
+        list.innerHTML = '';
+        if (rows.length === 0) {
+          list.textContent = '該当する曲はありません。';
+          return;
+        }
+        rows.forEach(row => {
+          const item = document.createElement('div');
+          item.className = 'result-row';
+          const text = document.createElement('div');
+          appendText(text, 'div', row.song_title, 'result-title');
+          appendText(text, 'div', row.artist_name, 'result-artist');
+          item.appendChild(text);
+          const button = document.createElement('button');
+          button.className = 'small-button';
+          button.textContent = '順位';
+          button.onclick = () => showSongRanking(row.song_id);
+          item.appendChild(button);
+          list.appendChild(item);
+        });
+      }
+
+      async function showSongRanking(songId) {
+        showProcessing('読込中です', '曲別ランキングを確認しています。');
+        try {
+          const result = await apiCall('songRanking', { songId: songId });
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          renderSongRanking(result.data);
+          showScreen('songRankingScreen');
+        } finally {
+          hideProcessing();
+        }
+      }
+
+      function renderSongRanking(data) {
+        document.getElementById('songRankingTitle').textContent = data.song.song_title;
+        document.getElementById('songRankingArtist').textContent = data.song.artist_name + ' 歴代ランキング';
+        const list = document.getElementById('songRankingList');
+        list.innerHTML = '';
+        if (!data.ranking || data.ranking.length === 0) {
+          list.textContent = 'この曲の記録はまだありません。';
+          return;
+        }
+        data.ranking.forEach(row => {
+          const item = document.createElement('div');
+          item.className = 'rank-show-row ' + getRankColorClass(row.rank);
+          appendRankNumber(item, row.rank);
+          const body = document.createElement('div');
+          body.className = 'rank-content';
+          const main = document.createElement('div');
+          main.className = 'rank-main-line';
+          appendText(main, 'div', row.nickname || '名無し', 'rank-name');
+          appendText(main, 'div', formatScore(row.score), 'rank-score');
+          body.appendChild(main);
+          appendText(body, 'div', formatRankingMonthLabel(row.ranking_month), 'rank-song');
+          item.appendChild(body);
+          list.appendChild(item);
+        });
       }
 
       async function changeNickname() {
