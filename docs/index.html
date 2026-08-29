@@ -235,7 +235,9 @@
         background: #fff;
       }
       .rank-show-row:nth-child(even) { background: #f7f9fc; }
-      .rank-show-row.top-rank { background: linear-gradient(90deg, #fff7d6, #ffffff 55%); }
+      .rank-show-row.gold-rank { background: linear-gradient(90deg, #fff7d6, #ffffff 55%); }
+      .rank-show-row.silver-rank { background: linear-gradient(90deg, #f1f5f9, #ffffff 55%); }
+      .rank-show-row.bronze-rank { background: linear-gradient(90deg, #f7e7d4, #ffffff 55%); }
       .rank-number {
         display: grid;
         place-items: center;
@@ -245,8 +247,17 @@
         font-weight: 900;
         border-right: 4px solid var(--gold);
       }
-      .top-rank .rank-number {
-        background: linear-gradient(180deg, #d6a21e, #9a6400);
+      .gold-rank .rank-number {
+        background: linear-gradient(180deg, #f4d35e, #b77900);
+      }
+      .silver-rank .rank-number {
+        background: linear-gradient(180deg, #f8fafc, #94a3b8);
+        color: #17202a;
+        border-right-color: #cbd5e1;
+      }
+      .bronze-rank .rank-number {
+        background: linear-gradient(180deg, #d89b5f, #8a4b22);
+        border-right-color: #c47a00;
       }
       .rank-content {
         min-width: 0;
@@ -774,7 +785,7 @@
         } else {
           rows.forEach(row => {
             const item = document.createElement('div');
-            item.className = 'rank-show-row' + (row.rank <= 3 ? ' top-rank' : '');
+            item.className = 'rank-show-row ' + getRankColorClass(row.rank);
             appendText(item, 'div', row.rank, 'rank-number');
             const body = document.createElement('div');
             body.className = 'rank-content';
@@ -798,6 +809,12 @@
         if (className) el.className = className;
         parent.appendChild(el);
         return el;
+      }
+
+      function getRankColorClass(rank) {
+        if (rank <= 3) return 'gold-rank';
+        if (rank <= 10) return 'silver-rank';
+        return 'bronze-rank';
       }
 
       async function moveRankingMonth(amount) {
