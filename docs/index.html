@@ -1089,16 +1089,16 @@
           const button = document.createElement('button');
           button.className = 'small-button';
           button.textContent = '順位';
-          button.onclick = () => showSongRanking(row.song_id);
+          button.onclick = () => showSongRanking(row.song_ids || [row.song_id]);
           item.appendChild(button);
           list.appendChild(item);
         });
       }
 
-      async function showSongRanking(songId) {
+      async function showSongRanking(songIds) {
         showProcessing('読込中です', '曲別ランキングを確認しています。');
         try {
-          const result = await apiCall('songRanking', { songId: songId });
+          const result = await apiCall('songRanking', { songIds: songIds });
           if (!result.ok) {
             showError(result.message);
             return;
