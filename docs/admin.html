@@ -83,6 +83,9 @@
         appearance: none;
         text-align: center;
       }
+      #monthInput {
+        margin-bottom: 12px;
+      }
       button {
         border: 1px solid var(--line);
         padding: 10px 12px;
@@ -241,7 +244,6 @@
           <h1>カラオケランキング管理</h1>
           <div id="adminInfo" class="muted">読み込み中...</div>
         </div>
-        <input id="monthInput" type="month">
       </div>
 
       <div id="message" class="message"></div>
@@ -249,6 +251,7 @@
       <section id="dashboardScreen" class="screen active">
         <div class="panel">
           <h2>管理トップ</h2>
+          <input id="monthInput" type="month">
           <div class="stats">
             <div class="stat">
               <span class="muted">対象年月</span>
