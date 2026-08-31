@@ -65,15 +65,23 @@
       select,
       button {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         min-height: 48px;
         border-radius: 8px;
         font-size: 16px;
+        display: block;
       }
       input,
       select {
         border: 1px solid var(--line);
         padding: 9px 11px;
         background: #fff;
+      }
+      input[type="month"] {
+        -webkit-appearance: none;
+        appearance: none;
+        text-align: center;
       }
       button {
         border: 1px solid var(--line);
