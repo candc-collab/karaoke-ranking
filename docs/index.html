@@ -157,6 +157,17 @@
         font-weight: 800;
       }
       .score-source.show { display: block; }
+      .duplicate-box {
+        padding: 12px;
+        border: 2px solid #d6a21e;
+        border-radius: 8px;
+        background: #fff8df;
+      }
+      .duplicate-box strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 17px;
+      }
       .actions,
       .nav {
         display: grid;
@@ -607,6 +618,17 @@
         </div>
       </section>
 
+      <section id="duplicateWarningScreen" class="screen">
+        <div class="panel">
+          <h2>同じ内容の登録かもしれません</h2>
+          <div id="duplicateWarningBox" class="duplicate-box"></div>
+          <div class="actions">
+            <button id="duplicateConfirmButton" onclick="submitScoreAfterDuplicateConfirm()">それでも登録する</button>
+            <button class="secondary" onclick="showScreen('scoreScreen')">内容を修正する</button>
+          </div>
+        </div>
+      </section>
+
       <section id="scoreCompleteScreen" class="screen">
         <div class="panel">
           <h2>登録しました。</h2>
@@ -746,7 +768,8 @@
         showingAllRanking: false,
         scoreInputType: 'manual',
         pendingImage: null,
-        uploadPollTimer: null
+        uploadPollTimer: null,
+        duplicateChecked: false
       };
       let pendingScore = null;
 
@@ -1155,6 +1178,7 @@
           score: document.getElementById('scoreInput').value,
           inputType: hasSavedImage ? 'image' : 'manual'
         };
+        state.duplicateChecked = false;
         if (hasSavedImage) {
           pendingScore.imageFileId = state.pendingImage.image_file_id;
           pendingScore.imageUrl = state.pendingImage.image_url;
@@ -1179,6 +1203,21 @@
         button.disabled = true;
         showProcessing('登録中です', 'スコアを保存してランキングを更新しています。');
         try {
+          if (!state.duplicateChecked) {
+            const duplicateResult = await apiCall('checkDuplicateScore', pendingScore);
+            if (!duplicateResult.ok) {
+              showScreen('scoreConfirmScreen');
+              showError(duplicateResult.message);
+              return;
+            }
+            if (duplicateResult.data.duplicate) {
+              hideProcessing();
+              button.disabled = false;
+              showDuplicateWarning(duplicateResult.data);
+              return;
+            }
+            state.duplicateChecked = true;
+          }
           const apiName = pendingScore && pendingScore.inputType === 'image' ? 'submitImageScore' : 'submitManualScore';
           const result = await apiCall(apiName, pendingScore);
           if (!result.ok) {
@@ -1200,11 +1239,38 @@
         }
       }
 
+      function showDuplicateWarning(duplicateData) {
+        const box = document.getElementById('duplicateWarningBox');
+        box.innerHTML = '';
+        appendText(box, 'strong', duplicateData.duplicate_minutes + '分以内に同じ曲・同じ点数の記録があります。');
+        const match = duplicateData.matches && duplicateData.matches[0];
+        if (match) {
+          appendText(box, 'div', match.song_title + ' / ' + match.artist_name);
+          appendText(box, 'div', formatScore(match.score) + ' ' + formatSimpleDateTime(match.registered_at), 'muted');
+        }
+        appendText(box, 'div', '間違いでなければ「それでも登録する」を押してください。', 'muted');
+        showScreen('duplicateWarningScreen');
+      }
+
+      async function submitScoreAfterDuplicateConfirm() {
+        const button = document.getElementById('duplicateConfirmButton');
+        button.disabled = true;
+        pendingScore.confirmDuplicate = true;
+        state.duplicateChecked = true;
+        showProcessing('登録中です', '確認済みのスコアを保存しています。');
+        try {
+          await submitScore();
+        } finally {
+          button.disabled = false;
+        }
+      }
+
       function resetScoreForm() {
         document.getElementById('songTitleInput').value = '';
         document.getElementById('artistNameInput').value = '';
         document.getElementById('scoreInput').value = '';
         pendingScore = null;
+        state.duplicateChecked = false;
         startManualEntry();
       }
 
@@ -1396,6 +1462,17 @@
         const month = date.getMonth() + 1;
         const day = date.getDate();
         return month + '/' + day;
+      }
+
+      function formatSimpleDateTime(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          return String(value).slice(0, 16);
+        }
+        return (date.getMonth() + 1) + '/' + date.getDate() + ' ' +
+          String(date.getHours()).padStart(2, '0') + ':' +
+          String(date.getMinutes()).padStart(2, '0');
       }
 
       function formatRankingMonthLabel(value) {
