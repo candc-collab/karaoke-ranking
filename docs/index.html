@@ -73,15 +73,25 @@
       }
       input {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         min-height: 52px;
         border: 1px solid #bdc7b9;
         border-radius: 8px;
         padding: 10px 12px;
         font-size: 17px;
         background: #fff;
+        display: block;
+      }
+      input[type="date"],
+      input[type="month"] {
+        -webkit-appearance: none;
+        appearance: none;
       }
       button {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         min-height: 52px;
         border: 0;
         border-radius: 8px;
