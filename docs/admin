@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>カラオケランキング管理</title>
+    <style>
+      :root {
+        --bg: #f2f4f7;
+        --surface: #ffffff;
+        --text: #17202a;
+        --muted: #687385;
+        --line: #d8dee8;
+        --primary: #007a5a;
+        --danger: #b91c1c;
+        --gold: #d6a21e;
+        --soft: #eef2ea;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #eef4f8 0, #f7f7f2 220px, var(--bg) 100%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        -webkit-text-size-adjust: 100%;
+      }
+      .app {
+        width: 100%;
+        max-width: 520px;
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 14px 12px calc(86px + env(safe-area-inset-bottom));
+      }
+      .topbar {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 900;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .message {
+        display: none;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        background: #fef2f2;
+        color: var(--danger);
+      }
+      .message.show { display: block; }
+      input,
+      select,
+      button {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 8px;
+        font-size: 16px;
+      }
+      input,
+      select {
+        border: 1px solid var(--line);
+        padding: 9px 11px;
+        background: #fff;
+      }
+      button {
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        background: #fff;
+        color: var(--text);
+        font-weight: 900;
+        touch-action: manipulation;
+      }
+      button.primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+      }
+      .tabs {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 10;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, 0.96);
+        border-top: 1px solid var(--line);
+        box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+      }
+      .tabs button {
+        min-height: 48px;
+        padding: 6px 4px;
+        font-size: 12px;
+        line-height: 1.25;
+        background: var(--soft);
+      }
+      .tabs button.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+      }
+      .screen { display: none; }
+      .screen.active { display: block; }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 8px 20px rgba(31, 41, 55, 0.05);
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfa;
+      }
+      .stat-value {
+        display: block;
+        margin-top: 2px;
+        font-size: 24px;
+        font-weight: 900;
+      }
+      .filters {
+        display: grid;
+        gap: 8px;
+      }
+      .quick-actions {
+        display: grid;
+        gap: 10px;
+      }
+      .list {
+        display: grid;
+        gap: 10px;
+      }
+      .record-card,
+      .user-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+      }
+      .card-top {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: start;
+      }
+      .nickname,
+      .song-title {
+        min-width: 0;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+      }
+      .song-title {
+        margin-top: 8px;
+        font-size: 17px;
+      }
+      .artist {
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .score {
+        color: #c1121f;
+        font-size: 22px;
+        font-weight: 900;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .badge.warn {
+        background: #fff8df;
+        color: #8a5a00;
+        border: 1px solid var(--gold);
+      }
+      .badge.invalid {
+        background: #fef2f2;
+        color: var(--danger);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 10px 0;
+      }
+      .loading {
+        color: var(--muted);
+        padding: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <div class="topbar">
+        <div>
+          <h1>カラオケランキング管理</h1>
+          <div id="adminInfo" class="muted">読み込み中...</div>
+        </div>
+        <input id="monthInput" type="month">
+      </div>
+
+      <div id="message" class="message"></div>
+
+      <section id="dashboardScreen" class="screen active">
+        <div class="panel">
+          <h2>管理トップ</h2>
+          <div class="stats">
+            <div class="stat">
+              <span class="muted">対象年月</span>
+              <span class="stat-value" id="dashboardMonth">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">登録件数</span>
+              <span class="stat-value" id="scoreCount">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">参加人数</span>
+              <span class="stat-value" id="participantCount">-</span>
+            </div>
+            <div class="stat">
+              <span class="muted">要確認</span>
+              <span class="stat-value" id="reviewCount">-</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel quick-actions">
+          <button class="primary" onclick="showTab('review')">要確認データを見る</button>
+          <button onclick="showTab('scores')">歌唱記録を見る</button>
+          <button onclick="showTab('users')">利用者を見る</button>
+        </div>
+      </section>
+
+      <section id="scoresScreen" class="screen">
+        <div class="panel">
+          <h2>歌唱記録</h2>
+          <div class="filters">
+            <input id="scoreKeyword" placeholder="ニックネーム・曲名・歌手名">
+            <input id="scoreMonth" type="month">
+            <select id="scoreInputType">
+              <option value="">登録方法すべて</option>
+              <option value="manual">手入力</option>
+              <option value="image">写真</option>
+            </select>
+            <select id="scoreStatus">
+              <option value="">状態すべて</option>
+              <option value="active">active</option>
+              <option value="invalid">invalid</option>
+            </select>
+            <button class="primary" onclick="loadScores()">検索</button>
+          </div>
+        </div>
+        <div id="scoreRows" class="list"></div>
+      </section>
+
+      <section id="reviewScreen" class="screen">
+        <div class="panel">
+          <h2>要確認データ</h2>
+          <p class="muted">重複疑いなど、確認が必要な記録を表示します。</p>
+        </div>
+        <div id="reviewRows" class="list"></div>
+      </section>
+
+      <section id="usersScreen" class="screen">
+        <div class="panel">
+          <h2>利用者管理</h2>
+          <div class="filters">
+            <input id="userKeyword" placeholder="ニックネーム">
+            <select id="userStatus">
+              <option value="">状態すべて</option>
+              <option value="active">active</option>
+              <option value="suspended">suspended</option>
+            </select>
+            <button class="primary" onclick="loadUsers()">検索</button>
+          </div>
+        </div>
+        <div id="userRows" class="list"></div>
+      </section>
+    </main>
+
+    <nav class="tabs" aria-label="管理メニュー">
+      <button id="dashboardTab" class="active" onclick="showTab('dashboard')">トップ</button>
+      <button id="scoresTab" onclick="showTab('scores')">記録</button>
+      <button id="reviewTab" onclick="showTab('review')">要確認</button>
+      <button id="usersTab" onclick="showTab('users')">利用者</button>
+    </nav>
+
+    <script src="./config.js"></script>
+    <script>
+      const appConfig = window.KARAOKE_APP_CONFIG || {};
+      const urlParams = new URLSearchParams(window.location.search);
+      const state = {
+        currentTab: 'dashboard',
+        rankingMonth: '',
+        adminAccessKey: urlParams.get('key') || ''
+      };
+
+      function apiCall(apiName, payload) {
+        return new Promise((resolve, reject) => {
+          if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
+            reject(new Error('GAS WebアプリURLが設定されていません。'));
+            return;
+          }
+
+          const callbackName = '__karaokeAdminApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+          const script = document.createElement('script');
+          const timerId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error('サーバーから返事がありません。GAS WebアプリURLを確認してください。'));
+          }, 20000);
+
+          window[callbackName] = (result) => {
+            cleanup();
+            resolve(result);
+          };
+
+          function cleanup() {
+            window.clearTimeout(timerId);
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+          }
+
+          const params = new URLSearchParams();
+          params.set('api', apiName);
+          params.set('callback', callbackName);
+          params.set('payload', JSON.stringify(Object.assign({}, payload || {}, {
+            adminAccessKey: state.adminAccessKey
+          })));
+          params.set('_', String(Date.now()));
+          script.onerror = () => {
+            cleanup();
+            reject(new Error('GAS APIを読み込めませんでした。docs/config.jsのGAS_API_URLを確認してください。'));
+          };
+          script.src = appConfig.GAS_API_URL + '?' + params.toString();
+          document.body.appendChild(script);
+        });
+      }
+
+      async function start() {
+        try {
+          if (!state.adminAccessKey) {
+            showError('管理キーがURLに付いていません。管理者用URLの末尾に ?key=管理キー を付けて開いてください。');
+            document.getElementById('adminInfo').textContent = '管理キーが必要です';
+            return;
+          }
+
+          const result = await apiCall('adminBootstrap');
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.rankingMonth = result.data.rankingMonth;
+          document.getElementById('monthInput').value = state.rankingMonth;
+          document.getElementById('scoreMonth').value = state.rankingMonth;
+          document.getElementById('adminInfo').textContent =
+            (result.data.admin.name || result.data.admin.email) + ' でログイン中';
+          await loadDashboard();
+        } catch (error) {
+          showError(error.message || '管理画面を読み込めませんでした。管理キーとGAS WebアプリURLを確認してください。');
+        }
+      }
+
+      function showTab(tabName) {
+        state.currentTab = tabName;
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tabs button').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabName + 'Screen').classList.add('active');
+        document.getElementById(tabName + 'Tab').classList.add('active');
+        clearError();
+        if (tabName === 'dashboard') loadDashboard();
+        if (tabName === 'scores') loadScores();
+        if (tabName === 'review') loadReview();
+        if (tabName === 'users') loadUsers();
+      }
+
+      async function loadDashboard() {
+        const month = document.getElementById('monthInput').value || state.rankingMonth;
+        setLoading('dashboardScreen');
+        const result = await apiCall('adminDashboard', { rankingMonth: month });
+        clearLoading('dashboardScreen');
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        document.getElementById('dashboardMonth').textContent = result.data.displayMonth;
+        document.getElementById('scoreCount').textContent = result.data.score_count + '件';
+        document.getElementById('participantCount').textContent = result.data.participant_count + '人';
+        document.getElementById('reviewCount').textContent = result.data.review_count + '件';
+      }
+
+      async function loadScores() {
+        setListLoading('scoreRows');
+        const result = await apiCall('adminScores', {
+          filters: {
+            keyword: document.getElementById('scoreKeyword').value,
+            rankingMonth: document.getElementById('scoreMonth').value,
+            inputType: document.getElementById('scoreInputType').value,
+            status: document.getElementById('scoreStatus').value
+          }
+        });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        renderScoreCards(document.getElementById('scoreRows'), result.data.scores || [], true);
+      }
+
+      async function loadReview() {
+        setListLoading('reviewRows');
+        const result = await apiCall('adminReview', { filters: {} });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        renderScoreCards(document.getElementById('reviewRows'), result.data.scores || [], false);
+      }
+
+      async function loadUsers() {
+        setListLoading('userRows');
+        const result = await apiCall('adminUsers', {
+          filters: {
+            keyword: document.getElementById('userKeyword').value,
+            status: document.getElementById('userStatus').value
+          }
+        });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        renderUserCards(document.getElementById('userRows'), result.data.users || []);
+      }
+
+      function renderScoreCards(list, rows, showMethod) {
+        list.innerHTML = '';
+        if (!rows.length) {
+          appendEmpty(list);
+          return;
+        }
+        rows.forEach(row => {
+          const card = document.createElement('article');
+          card.className = 'record-card';
+
+          const top = document.createElement('div');
+          top.className = 'card-top';
+          appendText(top, 'div', row.nickname || '名無し', 'nickname');
+          appendText(top, 'div', formatScore(row.score), 'score');
+          card.appendChild(top);
+
+          appendText(card, 'div', row.song_title || '', 'song-title');
+          appendText(card, 'div', row.artist_name || '', 'artist');
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          appendBadge(meta, formatDateTime(row.registered_at));
+          if (showMethod) appendBadge(meta, row.input_type === 'image' ? '写真' : '手入力');
+          appendBadge(meta, row.status, row.status === 'invalid' ? 'invalid' : '');
+          if (isDuplicate(row)) appendBadge(meta, '重複疑い', 'warn');
+          if (!showMethod) appendBadge(meta, getReviewReason(row), 'warn');
+          card.appendChild(meta);
+
+          list.appendChild(card);
+        });
+      }
+
+      function renderUserCards(list, rows) {
+        list.innerHTML = '';
+        if (!rows.length) {
+          appendEmpty(list);
+          return;
+        }
+        rows.forEach(row => {
+          const card = document.createElement('article');
+          card.className = 'user-card';
+
+          const top = document.createElement('div');
+          top.className = 'card-top';
+          appendText(top, 'div', row.nickname || '名無し', 'nickname');
+          appendBadge(top, row.status, row.status === 'suspended' ? 'invalid' : '');
+          card.appendChild(top);
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          appendBadge(meta, '歌唱 ' + row.score_count + '回');
+          appendBadge(meta, '登録 ' + formatDate(row.created_at));
+          appendBadge(meta, '最終 ' + formatDate(row.last_used_at));
+          card.appendChild(meta);
+
+          list.appendChild(card);
+        });
+      }
+
+      function appendText(parent, tag, text, className) {
+        const el = document.createElement(tag);
+        el.textContent = text || '';
+        if (className) el.className = className;
+        parent.appendChild(el);
+        return el;
+      }
+
+      function appendBadge(parent, text, tone) {
+        const badge = document.createElement('span');
+        badge.className = 'badge' + (tone ? ' ' + tone : '');
+        badge.textContent = text || '';
+        parent.appendChild(badge);
+      }
+
+      function appendEmpty(list) {
+        const empty = document.createElement('div');
+        empty.className = 'panel empty';
+        empty.textContent = '表示するデータがありません。';
+        list.appendChild(empty);
+      }
+
+      function setListLoading(id) {
+        const list = document.getElementById(id);
+        list.innerHTML = '<div class="panel loading">読み込み中...</div>';
+      }
+
+      function setLoading() {}
+      function clearLoading() {}
+
+      function isDuplicate(row) {
+        return row.duplicate_flag === true || String(row.duplicate_flag).toLowerCase() === 'true';
+      }
+
+      function getReviewReason(row) {
+        if (isDuplicate(row)) return '重複疑い';
+        return '点数確認';
+      }
+
+      function formatScore(value) {
+        if (value === null || typeof value === 'undefined' || value === '') return '';
+        return Number(value).toFixed(3);
+      }
+
+      function formatDate(value) {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return '-';
+        return (date.getMonth() + 1) + '/' + date.getDate();
+      }
+
+      function formatDateTime(value) {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return '-';
+        return (date.getMonth() + 1) + '/' + date.getDate() + ' ' +
+          String(date.getHours()).padStart(2, '0') + ':' +
+          String(date.getMinutes()).padStart(2, '0');
+      }
+
+      function showError(text) {
+        const message = document.getElementById('message');
+        message.textContent = text || '処理できませんでした。';
+        message.className = 'message show';
+      }
+
+      function clearError() {
+        const message = document.getElementById('message');
+        message.textContent = '';
+        message.className = 'message';
+      }
+
+      document.getElementById('monthInput').addEventListener('change', loadDashboard);
+      window.addEventListener('load', start);
+    </script>
+  </body>
+</html>
