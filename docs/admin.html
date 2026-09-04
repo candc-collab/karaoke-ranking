@@ -99,6 +99,11 @@
         border-color: var(--primary);
         color: #fff;
       }
+      button.danger {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: #fff;
+      }
       .tabs {
         position: fixed;
         left: 0;
@@ -235,6 +240,46 @@
         color: var(--muted);
         padding: 10px 0;
       }
+      .card-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: none;
+        align-items: end;
+        padding: 12px;
+        background: rgba(15, 23, 42, 0.38);
+      }
+      .modal.show {
+        display: flex;
+      }
+      .modal-panel {
+        width: 100%;
+        max-width: 520px;
+        max-height: min(86vh, 720px);
+        margin: 0 auto;
+        overflow: auto;
+        border-radius: 8px;
+        background: #fff;
+        padding: 16px;
+        box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.22);
+      }
+      .modal-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .modal label {
+        display: block;
+        margin: 12px 0 6px;
+        font-weight: 900;
+      }
     </style>
   </head>
   <body>
@@ -332,6 +377,17 @@
       <button id="usersTab" onclick="showTab('users')">利用者</button>
     </nav>
 
+    <div id="modal" class="modal" role="dialog" aria-modal="true">
+      <div class="modal-panel">
+        <h2 id="modalTitle"></h2>
+        <div id="modalBody"></div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeModal()">閉じる</button>
+          <button id="modalSubmit" type="button" class="primary">保存</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./config.js"></script>
     <script>
       const appConfig = window.KARAOKE_APP_CONFIG || {};
@@ -341,6 +397,7 @@
         rankingMonth: '',
         adminAccessKey: urlParams.get('key') || ''
       };
+      let modalSubmitHandler = null;
 
       function apiCall(apiName, payload) {
         return new Promise((resolve, reject) => {
@@ -505,6 +562,27 @@
           if (!showMethod) appendBadge(meta, getReviewReason(row), 'warn');
           card.appendChild(meta);
 
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const editButton = document.createElement('button');
+          editButton.type = 'button';
+          editButton.textContent = '修正';
+          editButton.onclick = () => openScoreEdit(row);
+          actions.appendChild(editButton);
+
+          const statusButton = document.createElement('button');
+          statusButton.type = 'button';
+          if (row.status === 'invalid') {
+            statusButton.textContent = '有効に戻す';
+            statusButton.onclick = () => restoreScore(row);
+          } else {
+            statusButton.textContent = '無効化';
+            statusButton.className = 'danger';
+            statusButton.onclick = () => openScoreInvalidation(row);
+          }
+          actions.appendChild(statusButton);
+          card.appendChild(actions);
+
           list.appendChild(card);
         });
       }
@@ -532,8 +610,135 @@
           appendBadge(meta, '最終 ' + formatDate(row.last_used_at));
           card.appendChild(meta);
 
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const renameButton = document.createElement('button');
+          renameButton.type = 'button';
+          renameButton.textContent = '名前変更';
+          renameButton.onclick = () => openUserRename(row);
+          actions.appendChild(renameButton);
+
+          const statusButton = document.createElement('button');
+          statusButton.type = 'button';
+          if (row.status === 'suspended') {
+            statusButton.textContent = '復帰';
+            statusButton.onclick = () => changeUserStatus(row, 'active');
+          } else {
+            statusButton.textContent = '停止';
+            statusButton.className = 'danger';
+            statusButton.onclick = () => changeUserStatus(row, 'suspended');
+          }
+          actions.appendChild(statusButton);
+          card.appendChild(actions);
+
           list.appendChild(card);
         });
+      }
+
+      function openScoreEdit(row) {
+        openModal('歌唱記録を修正', [
+          createField('曲名', 'editSongTitle', row.song_title || ''),
+          createField('歌手名', 'editArtistName', row.artist_name || ''),
+          createField('点数', 'editScore', formatScore(row.score), 'number', '0.001')
+        ]);
+        modalSubmitHandler = async () => {
+          const result = await apiCall('adminUpdateScore', {
+            scoreId: row.score_id,
+            input: {
+              songTitle: document.getElementById('editSongTitle').value,
+              artistName: document.getElementById('editArtistName').value,
+              score: document.getElementById('editScore').value
+            },
+            reason: 'admin_edit'
+          });
+          handleAdminUpdateResult(result, '修正しました。');
+        };
+      }
+
+      function openScoreInvalidation(row) {
+        openModal('歌唱記録を無効化', [
+          '<label for="invalidReason">無効理由</label>',
+          '<select id="invalidReason">',
+          '<option value="mistake">入力ミス</option>',
+          '<option value="duplicate">重複</option>',
+          '<option value="fraud">不正</option>',
+          '<option value="other">その他</option>',
+          '</select>'
+        ].join(''));
+        modalSubmitHandler = async () => {
+          const result = await apiCall('adminInvalidateScore', {
+            scoreId: row.score_id,
+            invalidReason: document.getElementById('invalidReason').value
+          });
+          handleAdminUpdateResult(result, '無効化しました。');
+        };
+      }
+
+      async function restoreScore(row) {
+        if (!window.confirm('この歌唱記録を有効に戻しますか？')) return;
+        const result = await apiCall('adminRestoreScore', { scoreId: row.score_id });
+        handleAdminUpdateResult(result, '有効に戻しました。');
+      }
+
+      function openUserRename(row) {
+        openModal('利用者名を変更', [
+          createField('ニックネーム', 'editNickname', row.nickname || '')
+        ]);
+        modalSubmitHandler = async () => {
+          const result = await apiCall('adminUpdateUser', {
+            userId: row.user_id,
+            input: {
+              nickname: document.getElementById('editNickname').value
+            },
+            reason: 'nickname_edit'
+          });
+          handleAdminUpdateResult(result, '名前を変更しました。');
+        };
+      }
+
+      async function changeUserStatus(row, status) {
+        const message = status === 'suspended'
+          ? 'この利用者を停止しますか？停止すると本人は利用できません。'
+          : 'この利用者を復帰させますか？';
+        if (!window.confirm(message)) return;
+        const result = await apiCall('adminUpdateUser', {
+          userId: row.user_id,
+          input: { status: status },
+          reason: status === 'suspended' ? 'suspend' : 'restore'
+        });
+        handleAdminUpdateResult(result, status === 'suspended' ? '停止しました。' : '復帰しました。');
+      }
+
+      function openModal(title, body) {
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalBody').innerHTML = Array.isArray(body) ? body.join('') : body;
+        document.getElementById('modal').className = 'modal show';
+      }
+
+      function closeModal() {
+        document.getElementById('modal').className = 'modal';
+        document.getElementById('modalBody').innerHTML = '';
+        modalSubmitHandler = null;
+      }
+
+      function createField(label, id, value, type, step) {
+        return '<label for="' + id + '">' + escapeHtml(label) + '</label>' +
+          '<input id="' + id + '" type="' + (type || 'text') + '"' +
+          (step ? ' step="' + step + '"' : '') +
+          ' value="' + escapeHtml(value) + '">';
+      }
+
+      async function handleAdminUpdateResult(result, successMessage) {
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        closeModal();
+        showNotice(successMessage);
+        if (state.currentTab === 'dashboard') await loadDashboard();
+        if (state.currentTab === 'scores') await loadScores();
+        if (state.currentTab === 'review') await loadReview();
+        if (state.currentTab === 'users') await loadUsers();
       }
 
       function appendText(parent, tag, text, className) {
@@ -556,6 +761,15 @@
         empty.className = 'panel empty';
         empty.textContent = '表示するデータがありません。';
         list.appendChild(empty);
+      }
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
       }
 
       function setListLoading(id) {
@@ -598,15 +812,39 @@
         const message = document.getElementById('message');
         message.textContent = text || '処理できませんでした。';
         message.className = 'message show';
+        message.style.background = '';
+        message.style.color = '';
+      }
+
+      function showNotice(text) {
+        const message = document.getElementById('message');
+        message.textContent = text || '完了しました。';
+        message.className = 'message show';
+        message.style.background = '#eef7f2';
+        message.style.color = '#005f49';
       }
 
       function clearError() {
         const message = document.getElementById('message');
         message.textContent = '';
         message.className = 'message';
+        message.style.background = '';
+        message.style.color = '';
       }
 
       document.getElementById('monthInput').addEventListener('change', loadDashboard);
+      document.getElementById('modalSubmit').addEventListener('click', async () => {
+        if (!modalSubmitHandler) return;
+        const button = document.getElementById('modalSubmit');
+        button.disabled = true;
+        button.textContent = '処理中...';
+        try {
+          await modalSubmitHandler();
+        } finally {
+          button.disabled = false;
+          button.textContent = '保存';
+        }
+      });
       window.addEventListener('load', start);
     </script>
   </body>
