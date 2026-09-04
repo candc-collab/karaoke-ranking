@@ -111,7 +111,7 @@
         bottom: 0;
         z-index: 10;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 1px;
         max-width: 520px;
         margin: 0 auto;
@@ -123,7 +123,7 @@
       .tabs button {
         min-height: 48px;
         padding: 6px 4px;
-        font-size: 12px;
+        font-size: 11px;
         line-height: 1.25;
         background: var(--soft);
       }
@@ -232,6 +232,19 @@
         background: #fef2f2;
         color: var(--danger);
       }
+      .merge-notice {
+        display: none;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--gold);
+        background: #fff8df;
+        color: #7a4f00;
+        font-weight: 900;
+      }
+      .merge-notice.show {
+        display: block;
+      }
       .empty {
         color: var(--muted);
         padding: 10px 0;
@@ -320,6 +333,7 @@
           <button class="primary" onclick="showTab('review')">要確認データを見る</button>
           <button onclick="showTab('scores')">歌唱記録を見る</button>
           <button onclick="showTab('users')">利用者を見る</button>
+          <button onclick="showTab('songs')">曲台帳を見る</button>
         </div>
       </section>
 
@@ -368,6 +382,23 @@
         </div>
         <div id="userRows" class="list"></div>
       </section>
+
+      <section id="songsScreen" class="screen">
+        <div class="panel">
+          <h2>曲台帳</h2>
+          <div id="mergeNotice" class="merge-notice"></div>
+          <div class="filters">
+            <input id="songKeyword" placeholder="曲名・歌手名">
+            <select id="songStatus">
+              <option value="active">activeのみ</option>
+              <option value="">状態すべて</option>
+              <option value="inactive">inactive</option>
+            </select>
+            <button class="primary" onclick="loadSongs()">検索</button>
+          </div>
+        </div>
+        <div id="songRows" class="list"></div>
+      </section>
     </main>
 
     <nav class="tabs" aria-label="管理メニュー">
@@ -375,6 +406,7 @@
       <button id="scoresTab" onclick="showTab('scores')">記録</button>
       <button id="reviewTab" onclick="showTab('review')">要確認</button>
       <button id="usersTab" onclick="showTab('users')">利用者</button>
+      <button id="songsTab" onclick="showTab('songs')">曲</button>
     </nav>
 
     <div id="modal" class="modal" role="dialog" aria-modal="true">
@@ -395,7 +427,8 @@
       const state = {
         currentTab: 'dashboard',
         rankingMonth: '',
-        adminAccessKey: urlParams.get('key') || ''
+        adminAccessKey: urlParams.get('key') || '',
+        mergeSourceSong: null
       };
       let modalSubmitHandler = null;
 
@@ -475,6 +508,7 @@
         if (tabName === 'scores') loadScores();
         if (tabName === 'review') loadReview();
         if (tabName === 'users') loadUsers();
+        if (tabName === 'songs') loadSongs();
       }
 
       async function loadDashboard() {
@@ -532,6 +566,22 @@
           return;
         }
         renderUserCards(document.getElementById('userRows'), result.data.users || []);
+      }
+
+      async function loadSongs() {
+        setListLoading('songRows');
+        updateMergeNotice();
+        const result = await apiCall('adminSongs', {
+          filters: {
+            keyword: document.getElementById('songKeyword').value,
+            status: document.getElementById('songStatus').value
+          }
+        });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        renderSongCards(document.getElementById('songRows'), result.data.songs || []);
       }
 
       function renderScoreCards(list, rows, showMethod) {
@@ -635,6 +685,58 @@
         });
       }
 
+      function renderSongCards(list, rows) {
+        list.innerHTML = '';
+        if (!rows.length) {
+          appendEmpty(list);
+          return;
+        }
+        rows.forEach(row => {
+          const card = document.createElement('article');
+          card.className = 'record-card';
+
+          const top = document.createElement('div');
+          top.className = 'card-top';
+          appendText(top, 'div', row.song_title || '', 'song-title');
+          appendBadge(top, row.status, row.status === 'inactive' ? 'invalid' : '');
+          card.appendChild(top);
+
+          appendText(card, 'div', row.artist_name || '', 'artist');
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          appendBadge(meta, '歌唱 ' + row.score_count + '回');
+          appendBadge(meta, '有効 ' + row.active_score_count + '回');
+          appendBadge(meta, '更新 ' + formatDate(row.updated_at || row.created_at));
+          card.appendChild(meta);
+
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const editButton = document.createElement('button');
+          editButton.type = 'button';
+          editButton.textContent = '修正';
+          editButton.onclick = () => openSongEdit(row);
+          actions.appendChild(editButton);
+
+          const mergeButton = document.createElement('button');
+          mergeButton.type = 'button';
+          if (state.mergeSourceSong && state.mergeSourceSong.song_id === row.song_id) {
+            mergeButton.textContent = '選択中';
+            mergeButton.disabled = true;
+          } else if (state.mergeSourceSong) {
+            mergeButton.textContent = 'ここへ統合';
+            mergeButton.onclick = () => mergeSongInto(row);
+          } else {
+            mergeButton.textContent = '統合元にする';
+            mergeButton.onclick = () => selectMergeSource(row);
+          }
+          actions.appendChild(mergeButton);
+          card.appendChild(actions);
+
+          list.appendChild(card);
+        });
+      }
+
       function openScoreEdit(row) {
         openModal('歌唱記録を修正', [
           createField('曲名', 'editSongTitle', row.song_title || ''),
@@ -709,6 +811,76 @@
         handleAdminUpdateResult(result, status === 'suspended' ? '停止しました。' : '復帰しました。');
       }
 
+      function openSongEdit(row) {
+        openModal('曲台帳を修正', [
+          createField('曲名', 'editSongTitle', row.song_title || ''),
+          createField('歌手名', 'editArtistName', row.artist_name || ''),
+          '<label for="editSongStatus">状態</label>',
+          '<select id="editSongStatus">',
+          '<option value="active"' + (row.status === 'active' ? ' selected' : '') + '>active</option>',
+          '<option value="inactive"' + (row.status === 'inactive' ? ' selected' : '') + '>inactive</option>',
+          '</select>'
+        ].join(''));
+        modalSubmitHandler = async () => {
+          const result = await apiCall('adminUpdateSong', {
+            songId: row.song_id,
+            input: {
+              songTitle: document.getElementById('editSongTitle').value,
+              artistName: document.getElementById('editArtistName').value,
+              status: document.getElementById('editSongStatus').value
+            },
+            reason: 'song_edit'
+          });
+          handleAdminUpdateResult(result, '曲台帳を修正しました。');
+        };
+      }
+
+      function selectMergeSource(row) {
+        state.mergeSourceSong = row;
+        updateMergeNotice();
+        loadSongs();
+      }
+
+      async function mergeSongInto(targetRow) {
+        const source = state.mergeSourceSong;
+        if (!source) return;
+        const message = '「' + source.song_title + ' / ' + source.artist_name + '」を「' +
+          targetRow.song_title + ' / ' + targetRow.artist_name + '」へ統合しますか？';
+        if (!window.confirm(message)) return;
+        const result = await apiCall('adminMergeSong', {
+          sourceSongId: source.song_id,
+          targetSongId: targetRow.song_id,
+          reason: 'song_merge'
+        });
+        if (!result.ok) {
+          showError(result.message);
+          return;
+        }
+        state.mergeSourceSong = null;
+        showNotice('曲を統合しました。移動した歌唱記録: ' + result.data.moved_score_count + '件');
+        await loadSongs();
+      }
+
+      function updateMergeNotice() {
+        const notice = document.getElementById('mergeNotice');
+        if (!notice) return;
+        if (!state.mergeSourceSong) {
+          notice.className = 'merge-notice';
+          notice.innerHTML = '';
+          return;
+        }
+        notice.className = 'merge-notice show';
+        notice.innerHTML = '統合元: ' + escapeHtml(state.mergeSourceSong.song_title) +
+          ' / ' + escapeHtml(state.mergeSourceSong.artist_name) +
+          '<div class="card-actions"><button type="button" onclick="cancelMergeSource()">解除</button></div>';
+      }
+
+      function cancelMergeSource() {
+        state.mergeSourceSong = null;
+        updateMergeNotice();
+        loadSongs();
+      }
+
       function openModal(title, body) {
         document.getElementById('modalTitle').textContent = title;
         document.getElementById('modalBody').innerHTML = Array.isArray(body) ? body.join('') : body;
@@ -739,6 +911,7 @@
         if (state.currentTab === 'scores') await loadScores();
         if (state.currentTab === 'review') await loadReview();
         if (state.currentTab === 'users') await loadUsers();
+        if (state.currentTab === 'songs') await loadSongs();
       }
 
       function appendText(parent, tag, text, className) {
