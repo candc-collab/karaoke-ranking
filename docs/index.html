@@ -779,7 +779,9 @@
         scoreInputType: 'manual',
         pendingImage: null,
         uploadPollTimer: null,
-        duplicateChecked: false
+        duplicateChecked: false,
+        myPageCache: null,
+        rankingCache: {}
       };
       let pendingScore = null;
 
@@ -844,19 +846,20 @@
             return;
           }
 
-          const publicConfig = await apiCall('publicConfig');
-          if (publicConfig.ok && publicConfig.data.shopName) {
-            document.getElementById('shopName').textContent = publicConfig.data.shopName;
-          }
-
           const result = await apiCall('bootstrap');
           if (!result.ok) {
             showError(result.message);
             return;
           }
+          if (result.data.config && result.data.config.shopName) {
+            document.getElementById('shopName').textContent = result.data.config.shopName;
+          }
           state.user = result.data.bootstrap.user;
           state.currentMonth = result.data.rankingMonth;
           state.rankingMonth = result.data.rankingMonth;
+          if (result.data.myPage) {
+            state.myPageCache = result.data.myPage;
+          }
           if (result.data.bootstrap.needsNickname) {
             showScreen('nicknameScreen');
             return;
@@ -951,6 +954,7 @@
             return;
           }
           state.user = result.data.user;
+          state.myPageCache = result.data.myPage || null;
           updateUserCaption();
           await showHome();
         } finally {
@@ -959,15 +963,52 @@
         }
       }
 
-      async function showHome() {
-        const result = await apiCall('mypage');
-        if (!result.ok) {
-          showError(result.message);
+      async function showHome(options) {
+        const settings = options || {};
+        if (state.myPageCache && !settings.forceRefresh) {
+          renderHome(state.myPageCache);
+          showScreen('homeScreen');
+          refreshHomeQuietly();
           return;
         }
-        document.getElementById('homeBest').textContent = formatScore(result.data.current_month_best_score);
-        document.getElementById('homeRank').textContent = result.data.current_month_rank ? '現在 ' + result.data.current_month_rank + '位' : '順位はまだありません';
-        showScreen('homeScreen');
+
+        if (!settings.quiet) {
+          showProcessing('読込中です', 'ホームを更新しています。');
+        }
+        try {
+          const result = await apiCall('mypage');
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.myPageCache = result.data;
+          renderHome(result.data);
+          showScreen('homeScreen');
+        } finally {
+          if (!settings.quiet) {
+            hideProcessing();
+          }
+        }
+      }
+
+      async function refreshHomeQuietly() {
+        try {
+          const result = await apiCall('mypage');
+          if (!result.ok) {
+            return;
+          }
+          state.myPageCache = result.data;
+          if (document.getElementById('homeScreen').classList.contains('active')) {
+            renderHome(result.data);
+          }
+        } catch (error) {
+          return;
+        }
+      }
+
+      function renderHome(data) {
+        document.getElementById('homeBest').textContent = formatScore(data.current_month_best_score);
+        document.getElementById('homeRank').textContent = data.current_month_rank ? '現在 ' + data.current_month_rank + '位' : '順位はまだありません';
       }
 
       function showScore() {
@@ -1238,6 +1279,8 @@
           state.currentMonth = result.data.rankingMonth || state.currentMonth;
           state.rankingMonth = state.currentMonth;
           state.loadedRanking = null;
+          state.rankingCache = {};
+          state.myPageCache = null;
           document.getElementById('completeScore').textContent =
             result.data.score.song_title_raw + ' / ' + result.data.score.artist_name_raw + ' ' + formatScore(result.data.score.score);
           document.getElementById('completeBest').textContent = result.data.monthlyBest ? formatScore(result.data.monthlyBest.score) : '未登録';
@@ -1286,6 +1329,15 @@
 
       async function showRanking(month) {
         const targetMonth = month || state.currentMonth || state.rankingMonth;
+        if (state.rankingCache[targetMonth]) {
+          state.loadedRanking = state.rankingCache[targetMonth];
+          state.rankingMonth = targetMonth;
+          renderRanking(false);
+          showScreen('rankingScreen');
+          refreshRankingQuietly(targetMonth);
+          return;
+        }
+
         showProcessing('ランキング読込中です', '最新の順位を確認しています。');
         try {
           const result = await apiCall('ranking', { rankingMonth: targetMonth });
@@ -1294,11 +1346,29 @@
             return;
           }
           state.loadedRanking = result.data;
+          state.rankingCache[result.data.rankingMonth] = result.data;
           state.rankingMonth = result.data.rankingMonth;
           renderRanking(false);
           showScreen('rankingScreen');
         } finally {
           hideProcessing();
+        }
+      }
+
+      async function refreshRankingQuietly(targetMonth) {
+        try {
+          const result = await apiCall('ranking', { rankingMonth: targetMonth });
+          if (!result.ok) {
+            return;
+          }
+          state.rankingCache[result.data.rankingMonth] = result.data;
+          if (document.getElementById('rankingScreen').classList.contains('active') &&
+              state.rankingMonth === result.data.rankingMonth) {
+            state.loadedRanking = result.data;
+            renderRanking(state.showingAllRanking);
+          }
+        } catch (error) {
+          return;
         }
       }
 
@@ -1422,6 +1492,7 @@
           document.getElementById('nicknameChangeInput').value = data.nickname || '';
           renderSongBests(data.song_bests || []);
           renderRecentScores(data.recent_scores || []);
+          state.myPageCache = data;
           showScreen('mypageScreen');
         } finally {
           hideProcessing();
@@ -1588,6 +1659,7 @@
             return;
           }
           state.user = result.data.user;
+          state.myPageCache = null;
           updateUserCaption();
           await showMyPage();
         } finally {
