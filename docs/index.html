@@ -606,7 +606,7 @@
           <input id="scoreInput" inputmode="decimal" placeholder="95.000">
           <div class="actions">
             <button onclick="showScoreConfirm()">登録内容を確認</button>
-            <button class="secondary" onclick="showHome()">戻る</button>
+            <button class="secondary" onclick="returnHome()">戻る</button>
           </div>
         </div>
       </section>
@@ -674,7 +674,7 @@
         <div class="panel">
           <div class="actions">
             <button id="showAllRankingButton" class="ghost" onclick="renderRanking(true)">全ランキングを見る</button>
-            <button class="secondary" onclick="showHome()">戻る</button>
+            <button class="secondary" onclick="returnHome()">戻る</button>
           </div>
         </div>
       </section>
@@ -686,7 +686,7 @@
           <input id="songSearchInput" placeholder="糸">
           <div class="actions">
             <button onclick="searchSongsFromForm()">検索</button>
-            <button class="secondary" onclick="showHome()">戻る</button>
+            <button class="secondary" onclick="returnHome()">戻る</button>
           </div>
         </div>
         <div class="panel">
@@ -709,7 +709,7 @@
         <div class="panel">
           <div class="actions">
             <button class="secondary" onclick="showSearch()">検索に戻る</button>
-            <button class="secondary" onclick="showHome()">ホームに戻る</button>
+            <button class="secondary" onclick="returnHome()">ホームに戻る</button>
           </div>
         </div>
       </section>
@@ -752,7 +752,7 @@
           <h3>最近の歌唱履歴</h3>
           <div id="recentScores"></div>
           <div class="actions">
-            <button class="secondary" onclick="showHome()">戻る</button>
+            <button class="secondary" onclick="returnHome()">戻る</button>
           </div>
         </div>
       </section>
@@ -988,6 +988,33 @@
           if (!settings.quiet) {
             hideProcessing();
           }
+        }
+      }
+
+      function returnHome() {
+        if (state.myPageCache) {
+          renderHome(state.myPageCache);
+        } else {
+          document.getElementById('homeBest').textContent = '確認中...';
+          document.getElementById('homeRank').textContent = '最新情報を確認しています';
+        }
+        showScreen('homeScreen');
+        window.setTimeout(refreshHomeAfterReturn, 30);
+      }
+
+      async function refreshHomeAfterReturn() {
+        try {
+          const result = await apiCall('mypage');
+          if (!result.ok) {
+            showError(result.message);
+            return;
+          }
+          state.myPageCache = result.data;
+          if (document.getElementById('homeScreen').classList.contains('active')) {
+            renderHome(result.data);
+          }
+        } catch (error) {
+          showError(error.message);
         }
       }
 
