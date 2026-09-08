@@ -981,7 +981,6 @@
         if (state.myPageCache && !settings.forceRefresh) {
           renderHome(state.myPageCache);
           showScreen('homeScreen');
-          refreshHomeQuietly();
           return;
         }
 
@@ -1540,7 +1539,13 @@
       }
 
       async function showMyPage() {
-        showProcessing('読込中です', 'マイページを更新しています。');
+        const cached = state.myPageCache;
+        if (cached) {
+          renderMyPage(cached);
+          showScreen('mypageScreen');
+        } else {
+          showProcessing('読込中です', 'マイページを更新しています。');
+        }
         try {
           const result = await apiCall('mypage');
           if (!result.ok) {
@@ -1548,18 +1553,25 @@
             return;
           }
           const data = result.data;
+          state.myPageCache = data;
+          if (cached && !document.getElementById('mypageScreen').classList.contains('active')) return;
+          renderMyPage(data, !!cached);
+          if (!cached) showScreen('mypageScreen');
+        } catch (error) {
+          if (!cached || document.getElementById('mypageScreen').classList.contains('active')) showError(error.message);
+        } finally {
+          if (!cached) hideProcessing();
+        }
+      }
+
+      function renderMyPage(data, preserveNicknameInput) {
           document.getElementById('mypageRank').textContent = data.current_month_rank ? data.current_month_rank + '位' : '-';
           document.getElementById('mypageMonthBest').textContent = formatScore(data.current_month_best_score);
           document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
           document.getElementById('mypageTotal').textContent = data.total_score_count + '回';
-          document.getElementById('nicknameChangeInput').value = data.nickname || '';
+          if (!preserveNicknameInput) document.getElementById('nicknameChangeInput').value = data.nickname || '';
           renderSongBests(data.song_bests || []);
           renderRecentScores(data.recent_scores || []);
-          state.myPageCache = data;
-          showScreen('mypageScreen');
-        } finally {
-          hideProcessing();
-        }
       }
 
       function renderRecentScores(rows) {
