@@ -119,18 +119,25 @@
       button:disabled { opacity: 0.55; }
       .entry-modes {
         display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
         margin: 4px 0 16px;
       }
       .photo-panel {
         display: none;
-        padding: 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fbfcfa;
+        padding: 8px 0;
         margin-bottom: 16px;
       }
       .photo-panel.show { display: block; }
+      #scoreScreen [hidden] { display: none !important; }
+      #scoreScreen .mode-button { min-width: 0; font-size: 16px; }
+      #scoreScreen .mode-button.active { outline: none; background: var(--primary); color: white; }
+      .photo-picker { display: flex; align-items: center; justify-content: center; min-height: 112px; padding: 16px; border: 2px dashed var(--primary); border-radius: 8px; color: var(--primary-dark); cursor: pointer; font-weight: 700; text-align: center; }
+      .photo-picker:focus-within { outline: 3px solid var(--primary); outline-offset: 3px; }
+      .photo-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; padding: 0; }
+      #imageUploadButton { margin-top: 16px; }
+      #imagePreview { max-height: 260px; object-fit: contain; }
+      .entry-step { color: var(--muted); font-size: 14px; margin: 8px 0 16px; }
       .capture-guide {
         margin: 0 0 12px;
         padding-left: 18px;
@@ -584,20 +591,20 @@
         <div class="panel">
           <h2>スコアを登録</h2>
           <div class="entry-modes">
-            <button id="imageModeButton" class="mode-button" onclick="startImageEntry()">写真から登録</button>
-            <button id="manualModeButton" class="secondary mode-button" onclick="startManualEntry()">手入力で登録</button>
+            <button id="imageModeButton" class="mode-button" aria-pressed="true" onclick="startImageEntry()">写真で読み取る</button>
+            <button id="manualModeButton" class="secondary mode-button" aria-pressed="false" onclick="startManualEntry()">手入力する</button>
           </div>
+          <p id="entryStep" class="entry-step" aria-live="polite">1 写真の読み取り → 2 内容確認 → 3 登録</p>
           <div id="photoPanel" class="photo-panel">
-            <ul class="capture-guide">
-              <li>採点結果画面全体を写す</li>
-              <li>曲名・歌手名・総合得点が見えるようにする</li>
-              <li>反射や斜め撮影を避ける</li>
-            </ul>
-            <input id="imageInput" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onchange="previewSelectedImage()">
+            <label class="photo-picker" for="imageInput">
+              <span id="photoPickerLabel">採点結果の写真を選ぶ</span>
+              <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" onchange="previewSelectedImage()">
+            </label>
             <img id="imagePreview" class="image-preview" alt="選択した写真の確認">
-            <button id="imageUploadButton" class="ghost" onclick="uploadSelectedImage()">写真を保存して入力へ</button>
-            <div id="photoStatus" class="photo-status"></div>
+            <button id="imageUploadButton" disabled onclick="uploadSelectedImage()">この写真を読み取る</button>
+            <div id="photoStatus" class="photo-status" role="status"></div>
           </div>
+          <div id="scoreFields" hidden>
           <div id="scoreSource" class="score-source"></div>
           <label for="songTitleInput">曲名</label>
           <input id="songTitleInput">
@@ -607,8 +614,10 @@
           <input id="scoreInput" inputmode="decimal" placeholder="95.000">
           <div class="actions">
             <button onclick="showScoreConfirm()">登録内容を確認</button>
-            <button class="secondary" onclick="returnHome()">戻る</button>
           </div>
+          <button id="changePhotoButton" class="ghost" hidden onclick="startImageEntry()">別の写真を選ぶ</button>
+          </div>
+          <div class="actions"><button class="secondary" onclick="returnHome()">戻る</button></div>
         </div>
       </section>
 
@@ -1045,6 +1054,11 @@
       }
 
       function startManualEntry() {
+        document.getElementById('scoreFields').hidden = false;
+        document.getElementById('changePhotoButton').hidden = true;
+        document.getElementById('entryStep').textContent = '1 内容入力 → 2 確認・登録';
+        document.getElementById('imageModeButton').setAttribute('aria-pressed', 'false');
+        document.getElementById('manualModeButton').setAttribute('aria-pressed', 'true');
         state.scoreInputType = 'manual';
         state.pendingImage = null;
         clearUploadTimer();
@@ -1060,13 +1074,23 @@
       }
 
       function startImageEntry() {
+        document.getElementById('scoreFields').hidden = true;
+        document.getElementById('changePhotoButton').hidden = true;
+        document.getElementById('entryStep').textContent = '1 写真の読み取り → 2 内容確認 → 3 登録';
+        document.getElementById('imageModeButton').setAttribute('aria-pressed', 'true');
+        document.getElementById('manualModeButton').setAttribute('aria-pressed', 'false');
+        document.getElementById('imageInput').value = '';
+        document.getElementById('imagePreview').className = 'image-preview';
+        document.getElementById('imagePreview').removeAttribute('src');
+        document.getElementById('imageUploadButton').disabled = true;
+        document.getElementById('photoPickerLabel').textContent = '採点結果の写真を選ぶ';
         state.scoreInputType = 'image';
         state.pendingImage = null;
         clearUploadTimer();
         document.getElementById('photoPanel').classList.add('show');
         document.getElementById('scoreSource').className = 'score-source';
         document.getElementById('scoreSource').textContent = '';
-        document.getElementById('photoStatus').textContent = '写真を選んで、保存してから下の項目を入力してください。';
+        document.getElementById('photoStatus').textContent = '曲名・歌手名・総合得点が写った写真';
         document.getElementById('imageModeButton').className = 'mode-button active';
         document.getElementById('manualModeButton').className = 'mode-button secondary';
       }
@@ -1077,7 +1101,10 @@
         state.pendingImage = null;
         document.getElementById('scoreSource').className = 'score-source';
         document.getElementById('scoreSource').textContent = '';
-        document.getElementById('photoStatus').textContent = file ? '写真を確認して「写真を保存して入力へ」を押してください。' : '';
+        document.getElementById('scoreFields').hidden = true;
+        document.getElementById('imageUploadButton').disabled = !file;
+        document.getElementById('photoPickerLabel').textContent = file ? '写真を選び直す' : '採点結果の写真を選ぶ';
+        document.getElementById('photoStatus').textContent = file ? '' : '曲名・歌手名・総合得点が写った写真';
         if (!file) {
           preview.className = 'image-preview';
           preview.removeAttribute('src');
@@ -1105,7 +1132,7 @@
         const button = document.getElementById('imageUploadButton');
         const uploadToken = createUploadToken();
         button.disabled = true;
-        showProcessing('写真保存中です', 'Google Driveへ保存しています。');
+        showProcessing('写真を読み取り中です', '曲名・歌手名・点数を確認しています。');
 
         const onMessage = (event) => {
           const data = event.data || {};
@@ -1197,11 +1224,16 @@
         }
         state.scoreInputType = 'image';
         state.pendingImage = result.data;
+        ['songTitleInput', 'artistNameInput', 'scoreInput'].forEach(id => { document.getElementById(id).value = ''; });
         applyImageReading(result.data.reading);
         const source = document.getElementById('scoreSource');
         source.textContent = createReadingStatusText(result.data.reading);
         source.className = 'score-source show';
-        document.getElementById('photoStatus').textContent = '保存済みです。自動読み取り結果を確認して、必要に応じて修正してください。';
+        document.getElementById('photoPanel').classList.remove('show');
+        document.getElementById('scoreFields').hidden = false;
+        document.getElementById('changePhotoButton').hidden = false;
+        document.getElementById('entryStep').textContent = '2 内容確認 → 3 登録';
+        document.getElementById('scoreFields').scrollIntoView({ block: 'start', behavior: 'smooth' });
       }
 
       function applyImageReading(readingResult) {
