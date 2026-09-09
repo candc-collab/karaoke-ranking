@@ -1,0 +1,119 @@
+:root {
+  --bg: #f1f1f1;
+  --text: #191919;
+  --muted: #656565;
+  --line: #dedede;
+  --primary: #bf0023;
+  --primary-dark: #98001c;
+  --red: #bf0023;
+  --gold: #b68b25;
+}
+body { background: var(--bg); letter-spacing: 0; }
+.app { max-width: 520px; padding: 0 0 calc(100px + env(safe-area-inset-bottom)); background: white; min-height: 100dvh; }
+.topbar { padding: 24px 22px 18px; margin: 0; border-bottom: 1px solid var(--line); }
+.shop-name { color: var(--red); font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 30px; line-height: 1.3; overflow-wrap: anywhere; }
+.brand-subtitle { margin: 3px 0 0; font-size: 12px; font-weight: 800; }
+#userCaption { display: block; margin-top: 8px; }
+#homeScreen ~ * { min-width: 0; }
+.panel { border: 0; border-radius: 0; box-shadow: none; padding: 24px 20px; margin: 0; border-bottom: 1px solid var(--line); }
+.screen { animation: screen-in 160ms ease-out; }
+.screen h2 { font-size: 22px; line-height: 1.4; }
+.screen h3 { line-height: 1.5; }
+button { border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1.4; }
+button.secondary { background: white; border: 1px solid #a9a9a9; }
+button:hover:not(:disabled) { filter: brightness(.96); }
+button:focus-visible, input:focus-visible { outline: 3px solid #326cad; outline-offset: 3px; }
+button:disabled { cursor: default; }
+input { border-color: #bdbdbd; font: inherit; min-height: 52px; border-radius: 6px; }
+.actions { gap: 14px; }
+.section-eyebrow { font-size: 14px; font-weight: 800; margin: 22px 0 4px; }
+.home-summary h2 { margin: 0; overflow-wrap: anywhere; }
+.home-numbers { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.hero-score { color: var(--red); font-size: 42px; line-height: 1.3; margin: 12px 0; font-family: "SF Mono", Menlo, Consolas, monospace; font-weight: 900; }
+#homeBest { margin: 0; }
+#homeRank { font-size: 16px; font-weight: 800; }
+.best-song { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; margin: 14px 0 2px; }
+.best-artist { margin: 0; overflow-wrap: anywhere; }
+.chart-heading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 20px 20px 14px; margin: 0; font-size: 17px !important; }
+.chart-heading::before, .chart-heading::after { content: ""; height: 1px; background: var(--gold); flex: 1; }
+.text-button { color: var(--red); background: white; font-size: 14px; min-height: 52px; }
+.home-search { padding-top: 16px; }
+.empty-state { padding: 20px; margin: 0; color: var(--muted); font-size: 14px; }
+.rank-show { padding: 0; background: white; overflow: visible; }
+.rank-show .month-switcher { grid-template-columns: 44px minmax(0, 1fr) 44px; padding: 10px 20px; }
+.month-switcher button { border: 0; font-size: 30px; min-height: 44px; height: 44px; padding: 0; }
+.month-label { font-size: 18px; }
+.rank-show-header { display: block; text-align: center; background: #1d1d1d; padding: 20px 14px; border-bottom: 3px solid var(--gold); }
+.rank-show-title { font-family: Georgia, serif; font-size: 23px !important; line-height: 1.25; color: #ecd079; overflow-wrap: anywhere; }
+.rank-show-subtitle { color: white; font-size: 12px; margin-top: 5px; }
+.rank-show-row, .rank-show-row:nth-child(even), .rank-show-row.gold-rank, .rank-show-row.silver-rank, .rank-show-row.bronze-rank { background: white; }
+.rank-show-row { grid-template-columns: 48px minmax(0, 1fr); min-height: 76px; border-color: var(--line); position: relative; }
+.rank-number { border-right: 0; font-family: Georgia, serif; font-size: 28px; color: #201c13; }
+.gold-rank .rank-number, .gold-rank .rank-number.first-place { background: linear-gradient(120deg, #eedb95, #d1a737 65%, #f1dda0); color: #201c13; box-shadow: none; }
+.silver-rank .rank-number { background: linear-gradient(120deg, #eceeef, #b8bdc3 65%, #e4e5e7); color: #222; }
+.bronze-rank .rank-number { background: linear-gradient(120deg, #e5c5a4, #b67b4c 65%, #dcb28b); color: #291c12; }
+.rank-number.first-place { font-size: 24px; gap: 0; }
+.crown-icon { width: 23px; height: 18px; filter: none; }
+.rank-content { padding: 11px 12px; }
+.rank-main-line { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
+.rank-name { font-size: 16px; white-space: normal; overflow-wrap: anywhere; }
+.rank-score { font-size: 17px; width: 8.4ch; }
+.rank-song { font-size: 12px; line-height: 1.5; color: #656565; }
+.is-mine::after { content: ""; position: absolute; inset: 0; border: 2px solid #268456; pointer-events: none; }
+.you-label { font-family: inherit; font-size: 10px; display: inline-block; background: #e9f5ed; color: #21663f; padding: 1px 4px; margin-left: 5px; vertical-align: middle; }
+.my-rank-box { border: 0; border-left: 3px solid var(--gold); background: #faf9f5; margin: 18px 20px 0; padding: 14px; }
+.my-rank-box p { margin: 4px 0; overflow-wrap: anywhere; }
+.completion { text-align: center; padding-top: 32px; position: relative; }
+.success-mark { margin: 0 auto 20px; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: #278443; color: white; font-size: 36px; }
+.completion h2 { margin-bottom: 12px; }
+.celebration-label { color: #8a6516; font-size: 17px; font-weight: 800; margin: 20px 0 4px; }
+.completion .hero-score { font-size: 44px; margin: 18px 0 4px; }
+.completion .best-song { margin: 0; }
+#completeArtist { margin: 4px 0 24px; overflow-wrap: anywhere; }
+.completion-rank { border-top: 1px solid var(--line); padding-top: 20px; }
+.completion-rank h3 { font-size: 14px; margin: 0; }
+#completeRank { margin: 5px 0; }
+#completeRank strong { font-size: 34px; color: var(--red); }
+.previous-rank { font-size: 23px; }
+.completion-rank .muted { font-size: 12px; }
+.is-record .success-mark { outline: 5px solid #f0e3b8; outline-offset: 7px; animation: record-in 550ms ease-out; }
+.bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 520px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); z-index: 10; }
+[hidden] { display: none !important; }
+.bottom-nav button { background: white; color: #414141; flex-direction: column; gap: 4px; padding: 5px 0; font-size: 10px; font-weight: 600; min-height: 50px; }
+.bottom-nav button[aria-current] { color: var(--red); font-weight: 900; }
+.ui-icon { width: 22px; height: 22px; display: inline-block; flex-shrink: 0; background: currentColor; mask: var(--icon) center / contain no-repeat; -webkit-mask: var(--icon) center / contain no-repeat; }
+.camera { --icon: url('./icons/camera.svg'); }
+.pencil { --icon: url('./icons/pencil.svg'); }
+.home { --icon: url('./icons/house.svg'); }
+.circle-plus { --icon: url('./icons/circle-plus.svg'); }
+.chart-no-axes-column { --icon: url('./icons/chart-no-axes-column.svg'); }
+.user-round { --icon: url('./icons/user-round.svg'); }
+.search { --icon: url('./icons/search.svg'); }
+.stats { gap: 0; border-top: 1px solid var(--line); }
+.stat { background: white; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); padding: 14px 8px; }
+.stat-value { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 21px; color: var(--red); }
+.stat .muted { font-size: 12px; }
+.photo-picker { border-color: #a8a8a8; background: #fafafa; }
+.score-source { background: #eef7f0; color: #24623a; font-size: 14px; font-weight: 600; }
+.entry-modes { background: #f2f2f2; padding: 4px; border-radius: 8px; gap: 4px; }
+.entry-modes .secondary { border-color: transparent; background: transparent; }
+.history-row { grid-template-columns: minmax(0, 1fr) auto; }
+.history-title { grid-column: 1 / -1; grid-row: 2; }
+.history-score { grid-row: 1; }
+.history-artist { font-size: 13px; }
+.message, .diagnostic { margin: 16px 20px; }
+.loading-card { border: 0; }
+@keyframes screen-in { from { opacity: .7; } to { opacity: 1; } }
+@keyframes record-in { from { transform: scale(.85); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 360px) {
+  .panel { padding-left: 16px; padding-right: 16px; }
+  .hero-score, .completion .hero-score { font-size: 36px; }
+  .rank-content { padding: 10px 8px; }
+  .rank-show-row { grid-template-columns: 40px minmax(0, 1fr); }
+  .rank-score { font-size: 15px; }
+  .rank-name { font-size: 14px; }
+  .stat-value { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen, .is-record .success-mark { animation: none; }
+}
