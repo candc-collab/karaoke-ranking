@@ -539,11 +539,13 @@
         .nav { grid-template-columns: 1fr 1fr; }
       }
     </style>
+    <link rel="stylesheet" href="./theme.css">
   </head>
   <body>
     <main class="app">
       <div class="topbar">
         <p class="shop-name" id="shopName">カラオケランキング</p>
+        <p class="brand-subtitle">カラオケランキング</p>
         <span class="caption" id="userCaption"></span>
       </div>
       <div id="message" class="message"></div>
@@ -576,17 +578,27 @@
       </section>
 
       <section id="homeScreen" class="screen">
-        <div class="panel">
-          <h2>今月のあなた</h2>
-          <div class="muted">最高得点</div>
+        <div class="panel home-summary">
+          <h2 id="homeGreeting">ようこそ</h2>
+          <div class="section-eyebrow">今月のベスト</div>
+          <div class="home-numbers">
           <div class="hero-score" id="homeBest">未登録</div>
-          <div id="homeRank" class="muted">順位はまだありません</div>
+          <div id="homeRank">順位はまだありません</div>
+          </div>
+          <p id="homeSong" class="best-song"></p>
+          <p id="homeArtist" class="muted best-artist"></p>
+          <div class="actions">
+            <button onclick="showScore()"><span class="ui-icon camera" aria-hidden="true"></span>写真でスコア登録</button>
+            <button class="secondary" onclick="showScreen('scoreScreen'); startManualEntry();"><span class="ui-icon pencil" aria-hidden="true"></span>手入力で登録</button>
+          </div>
         </div>
-        <div class="nav">
-          <button onclick="showScore()">スコア登録</button>
-          <button class="secondary" onclick="showRanking()">今月ランキング</button>
-          <button class="secondary" onclick="showSearch()">曲を検索</button>
-          <button class="secondary" onclick="showMyPage()">マイページ</button>
+        <div class="home-chart">
+          <h2 class="chart-heading">今月のTOP 3</h2>
+          <div id="homeRankingList" aria-live="polite"><p class="empty-state">ランキングを確認中…</p></div>
+          <button class="text-button" onclick="showRanking()">ランキングをすべて見る <span aria-hidden="true"> →</span></button>
+        </div>
+        <div class="panel home-search">
+          <button class="secondary" onclick="showSearch()"><span class="ui-icon search" aria-hidden="true"></span>曲名・歌手名から検索</button>
         </div>
       </section>
 
@@ -653,15 +665,20 @@
       </section>
 
       <section id="scoreCompleteScreen" class="screen">
-        <div class="panel">
-          <h2>登録しました。</h2>
-          <p id="completeScore"></p>
-          <h3>現在のあなたの今月最高得点</h3>
-          <p class="hero-score" id="completeBest"></p>
-          <h3>現在順位</h3>
-          <p id="completeRank"></p>
+        <div class="panel completion">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h2 tabindex="-1" id="completeTitle">登録しました！</h2>
+          <p id="completeCelebration" class="celebration-label" hidden></p>
+          <p id="completeScore" class="hero-score"></p>
+          <h3 id="completeSong" class="best-song"></h3>
+          <p id="completeArtist" class="muted"></p>
+          <div class="completion-rank">
+            <h3>今月の順位</h3>
+            <p id="completeRank"></p>
+            <p class="muted">今月のベスト <span id="completeBest"></span></p>
+          </div>
           <div class="actions">
-            <button onclick="showRanking(state.currentMonth)">今月ランキングを見る</button>
+            <button onclick="showRanking(state.currentMonth)">ランキングを見る</button>
             <button class="secondary" onclick="resetScoreForm(); showScore();">続けて登録する</button>
           </div>
         </div>
@@ -670,16 +687,15 @@
       <section id="rankingScreen" class="screen">
         <div class="panel rank-show">
           <div class="month-switcher">
-            <button class="secondary" onclick="moveRankingMonth(-1)">前月</button>
+            <button class="secondary" aria-label="前月" title="前月" onclick="moveRankingMonth(-1)">‹</button>
             <div class="month-label" id="rankingMonthLabel"></div>
-            <button class="secondary" id="nextMonthButton" onclick="moveRankingMonth(1)">次月</button>
+            <button class="secondary" id="nextMonthButton" aria-label="次月" title="次月" onclick="moveRankingMonth(1)">›</button>
           </div>
           <div class="rank-show-header">
             <div>
-              <h2 class="rank-show-title">MONTHLY BEST 10</h2>
+              <h2 class="rank-show-title">MONTHLY RANKING</h2>
               <p class="rank-show-subtitle">月間総合ランキング</p>
             </div>
-            <div class="caption">SCORE</div>
           </div>
           <div id="rankingList" class="rank-show-list"></div>
         </div>
@@ -769,6 +785,12 @@
           </div>
         </div>
       </section>
+      <nav id="bottomNav" class="bottom-nav" aria-label="メインメニュー" hidden>
+        <button data-tab="home" onclick="returnHome()"><span class="ui-icon home" aria-hidden="true"></span><span>ホーム</span></button>
+        <button data-tab="score" onclick="showScore()"><span class="ui-icon circle-plus" aria-hidden="true"></span><span>登録</span></button>
+        <button data-tab="ranking" onclick="showRanking()"><span class="ui-icon chart-no-axes-column" aria-hidden="true"></span><span>ランキング</span></button>
+        <button data-tab="mypage" onclick="showMyPage()"><span class="ui-icon user-round" aria-hidden="true"></span><span>マイページ</span></button>
+      </nav>
     </main>
 
     <iframe id="imageUploadFrame" name="imageUploadFrame" style="display:none;"></iframe>
@@ -892,6 +914,15 @@
         document.getElementById('loadingScreen').style.display = 'none';
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
         document.getElementById(id).classList.add('active');
+        const nav = document.getElementById('bottomNav');
+        nav.hidden = !state.user || id === 'nicknameScreen';
+        const tab = id === 'homeScreen' ? 'home' : id === 'mypageScreen' ? 'mypage' :
+          /ranking|search/i.test(id) ? 'ranking' : 'score';
+        nav.querySelectorAll('button').forEach(button => {
+          if (button.dataset.tab === tab) button.setAttribute('aria-current', 'page');
+          else button.removeAttribute('aria-current');
+        });
+        window.scrollTo(0, 0);
         clearMessage();
       }
 
@@ -1048,6 +1079,52 @@
       function renderHome(data) {
         document.getElementById('homeBest').textContent = formatScore(data.current_month_best_score);
         document.getElementById('homeRank').textContent = data.current_month_rank ? '現在 ' + data.current_month_rank + '位' : '順位はまだありません';
+        document.getElementById('homeGreeting').textContent = (data.nickname || state.user.nickname) + 'さん';
+        document.getElementById('homeSong').textContent = '';
+        document.getElementById('homeArtist').textContent = '';
+        loadHomeRanking();
+      }
+
+      let homeRankingRequest = null;
+      async function loadHomeRanking() {
+        const month = state.currentMonth;
+        const cached = state.rankingCache[month];
+        if (cached) { renderHomeRanking(cached); return; }
+        if (homeRankingRequest) return;
+        document.getElementById('homeRankingList').textContent = 'ランキングを確認中…';
+        homeRankingRequest = apiCall('ranking', { rankingMonth: month });
+        try {
+          const result = await homeRankingRequest;
+          if (!result.ok) throw new Error(result.message);
+          state.rankingCache[month] = result.data;
+          if (month === state.currentMonth) renderHomeRanking(result.data);
+        } catch (error) {
+          document.getElementById('homeRankingList').textContent = 'ランキングを取得できませんでした。';
+        } finally { homeRankingRequest = null; }
+      }
+
+      function renderHomeRanking(data) {
+        const list = document.getElementById('homeRankingList');
+        list.innerHTML = '';
+        const rows = (data.all || data.top || []).slice(0, 3);
+        rows.forEach(row => list.appendChild(createRankingRow(row)));
+        if (!rows.length) appendText(list, 'p', '今月最初のスコアを登録しよう。', 'empty-state');
+        document.getElementById('homeSong').textContent = data.myRank ? data.myRank.song_title : '';
+        document.getElementById('homeArtist').textContent = data.myRank ? data.myRank.artist_name : '';
+      }
+
+      function createRankingRow(row) {
+        const item = document.createElement('div');
+        const mine = state.user && String(row.user_id) === String(state.user.user_id);
+        item.className = 'rank-show-row ' + getRankColorClass(row.rank) + (mine ? ' is-mine' : '');
+        appendRankNumber(item, row.rank);
+        const body = appendText(item, 'div', '', 'rank-content');
+        const main = appendText(body, 'div', '', 'rank-main-line');
+        const name = appendText(main, 'div', row.nickname || '名無し', 'rank-name');
+        if (mine) appendText(name, 'span', 'あなた', 'you-label');
+        appendText(main, 'div', formatScore(row.score), 'rank-score');
+        appendText(body, 'div', row.song_title + ' / ' + row.artist_name, 'rank-song');
+        return item;
       }
 
       function showScore() {
@@ -1340,18 +1417,33 @@
           }
           state.currentMonth = result.data.rankingMonth || state.currentMonth;
           state.rankingMonth = state.currentMonth;
+          const previous = state.rankingCache[state.currentMonth];
+          renderScoreCompletion(result.data, previous ? previous.myRank : null);
           state.loadedRanking = null;
           state.rankingCache = {};
           state.myPageCache = null;
-          document.getElementById('completeScore').textContent =
-            result.data.score.song_title_raw + ' / ' + result.data.score.artist_name_raw + ' ' + formatScore(result.data.score.score);
-          document.getElementById('completeBest').textContent = result.data.monthlyBest ? formatScore(result.data.monthlyBest.score) : '未登録';
-          document.getElementById('completeRank').textContent = result.data.monthlyBest ? result.data.monthlyBest.rank + '位' : '順位はまだありません';
           showScreen('scoreCompleteScreen');
         } finally {
           hideProcessing();
           button.disabled = false;
         }
+      }
+
+      function renderScoreCompletion(data, previous) {
+        const best = data.monthlyBest;
+        const improved = previous && best && Number(best.score) > Number(previous.score);
+        document.getElementById('completeScore').textContent = formatScore(data.score.score);
+        document.getElementById('completeSong').textContent = data.score.song_title_raw;
+        document.getElementById('completeArtist').textContent = data.score.artist_name_raw;
+        document.getElementById('completeBest').textContent = best ? formatScore(best.score) : '未登録';
+        const rank = document.getElementById('completeRank');
+        rank.innerHTML = '';
+        if (previous && best && best.rank < previous.rank) appendText(rank, 'span', previous.rank + '位 → ', 'previous-rank');
+        appendText(rank, 'strong', best ? best.rank + '位' : '順位はまだありません');
+        const celebration = document.getElementById('completeCelebration');
+        celebration.hidden = !improved;
+        celebration.textContent = improved ? '今月の自己ベスト更新！' : '';
+        document.querySelector('.completion').classList.toggle('is-record', !!improved);
       }
 
       function showDuplicateWarning(duplicateData) {
@@ -1457,21 +1549,7 @@
         if (rows.length === 0) {
           list.textContent = 'この月の記録はまだありません。';
         } else {
-          rows.forEach(row => {
-            const item = document.createElement('div');
-            item.className = 'rank-show-row ' + getRankColorClass(row.rank);
-            appendRankNumber(item, row.rank);
-            const body = document.createElement('div');
-            body.className = 'rank-content';
-            const main = document.createElement('div');
-            main.className = 'rank-main-line';
-            appendText(main, 'div', row.nickname || '名無し', 'rank-name');
-            appendText(main, 'div', formatScore(row.score), 'rank-score');
-            body.appendChild(main);
-            appendText(body, 'div', row.song_title + ' / ' + row.artist_name, 'rank-song');
-            item.appendChild(body);
-            list.appendChild(item);
-          });
+          rows.forEach(row => list.appendChild(createRankingRow(row)));
         }
         document.getElementById('showAllRankingButton').style.display =
           loadedRanking.all.length > loadedRanking.top.length && !state.showingAllRanking ? 'block' : 'none';
@@ -1506,14 +1584,14 @@
 
         const crown = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         crown.setAttribute('d', 'M6 30h36l-3-20-10 10-5-14-5 14L9 10 6 30Z');
-        crown.setAttribute('fill', '#fff8d6');
-        crown.setAttribute('stroke', '#6f4700');
+        crown.setAttribute('fill', '#201c13');
+        crown.setAttribute('stroke', '#201c13');
         crown.setAttribute('stroke-width', '3');
         crown.setAttribute('stroke-linejoin', 'round');
 
         const base = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         base.setAttribute('d', 'M8 30h32v4H8z');
-        base.setAttribute('fill', '#6f4700');
+        base.setAttribute('fill', '#201c13');
 
         svg.appendChild(crown);
         svg.appendChild(base);
