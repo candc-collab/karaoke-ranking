@@ -549,6 +549,11 @@
         <span class="caption" id="userCaption"></span>
       </div>
       <div id="message" class="message"></div>
+      <div style="padding: 8px 20px">
+        <button class="secondary small-button" onclick="runConnectionDiagnostic()">接続を診断</button>
+        <button class="secondary small-button" onclick="downloadConnectionDiagnostic()">診断記録を保存</button>
+        <p id="connectionDiagnosticStatus" class="caption" role="status"></p>
+      </div>
       <div id="diagnosticBox" class="diagnostic"></div>
       <div id="processingOverlay" class="processing-overlay" aria-live="polite">
         <div class="processing-card">
@@ -796,6 +801,7 @@
     <iframe id="imageUploadFrame" name="imageUploadFrame" style="display:none;"></iframe>
     <form id="imageUploadForm" method="post" target="imageUploadFrame" style="display:none;">
       <input type="hidden" name="action" value="uploadImage">
+      <input type="hidden" name="requestId" id="uploadRequestIdField">
       <input type="hidden" name="uploadToken" id="uploadTokenField">
       <input type="hidden" name="idToken" id="uploadIdTokenField">
       <input type="hidden" name="mimeType" id="uploadMimeTypeField">
@@ -820,6 +826,39 @@
       };
       let pendingScore = null;
 
+      const diagnosticKey = 'karaoke-connection-diagnostic-v1';
+      let diagnosticRecords = [];
+      try { diagnosticRecords = JSON.parse(sessionStorage.getItem(diagnosticKey) || '[]'); if (!Array.isArray(diagnosticRecords)) diagnosticRecords = []; } catch (_) {}
+      function recordCommunication(record) {
+        diagnosticRecords.push(Object.assign({ at: new Date().toISOString(), visible: document.visibilityState, online: navigator.onLine, screen: document.querySelector('.screen.active')?.id || 'startup' }, record));
+        diagnosticRecords = diagnosticRecords.slice(-200);
+        try { sessionStorage.setItem(diagnosticKey, JSON.stringify(diagnosticRecords)); } catch (_) {}
+      }
+      function downloadConnectionDiagnostic() {
+        const blob = new Blob([JSON.stringify({ version: 'connection-1', records: diagnosticRecords }, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a'); link.href = url; link.download = 'karaoke-connection.json'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      let diagnosingConnection = false;
+      async function runConnectionDiagnostic() {
+        if (diagnosingConnection) return;
+        diagnosingConnection = true;
+        const status = document.getElementById('connectionDiagnosticStatus');
+        const results = [];
+        try {
+          for (let i = 0; i < 3; i++) {
+            status.textContent = '接続確認中 ' + (i + 1) + '/3';
+            const start = performance.now();
+            try {
+              const result = await apiCall('ping');
+              results.push(result.ok && result.data?.diagnosticVersion === 'connection-1' ? ((performance.now() - start) / 1000).toFixed(1) + '秒' : 'GASの診断版を確認してください');
+            } catch (_) { results.push('応答を確認できません'); }
+          }
+          status.textContent = results.join(' / ') + '。診断記録を保存してください。';
+        } finally { diagnosingConnection = false; }
+      }
+
       function apiCall(apiName, payload) {
         return new Promise((resolve, reject) => {
           if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
@@ -827,13 +866,19 @@
             return;
           }
           const callbackName = '__karaokeApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+          const requestId = callbackName.replace('__karaokeApiCallback_', 'req_');
+          const started = performance.now();
+          const trace = stage => recordCommunication({ requestId, api: apiName, stage, elapsedMs: Math.round(performance.now() - started) });
+          trace('sent');
           const script = document.createElement('script');
           const timerId = window.setTimeout(() => {
+            trace('timeout');
             cleanup();
-            reject(new Error('サーバーから返事がありません。GAS WebアプリURLを確認してください。'));
+            reject(new Error('通信結果を確認できませんでした。登録操作の場合は歌唱履歴を確認してください。診断番号: ' + requestId));
           }, 20000);
 
           window[callbackName] = (result) => {
+            trace(result && result.ok ? 'received_ok' : 'received_error');
             cleanup();
             resolve(result);
           };
@@ -846,13 +891,16 @@
 
           const params = new URLSearchParams();
           params.set('api', apiName);
+          params.set('requestId', requestId);
           params.set('callback', callbackName);
           if (state.idToken) params.set('idToken', state.idToken);
           if (payload) params.set('payload', JSON.stringify(payload));
           script.onerror = () => {
+            trace('script_load_error');
             cleanup();
             reject(new Error('GAS APIを読み込めませんでした。docs/config.jsのGAS_API_URLを確認してください。'));
           };
+          script.onload = () => trace('script_loaded');
           params.set('_', String(Date.now()));
           script.src = appConfig.GAS_API_URL + '?' + params.toString();
           document.body.appendChild(script);
@@ -1226,6 +1274,9 @@
           .then((dataUrl) => {
             const base64 = dataUrl.split(',')[1] || '';
             document.getElementById('uploadTokenField').value = uploadToken;
+            const uploadRequestId = 'upload_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+            document.getElementById('uploadRequestIdField').value = uploadRequestId;
+            recordCommunication({requestId: uploadRequestId, api: 'uploadImage', stage: 'sent'});
             document.getElementById('uploadIdTokenField').value = state.idToken;
             document.getElementById('uploadMimeTypeField').value = 'image/jpeg';
             document.getElementById('uploadImageDataField').value = base64;
@@ -1423,6 +1474,8 @@
           state.rankingCache = {};
           state.myPageCache = null;
           showScreen('scoreCompleteScreen');
+        } catch (error) {
+          showError(error.message);
         } finally {
           hideProcessing();
           button.disabled = false;
