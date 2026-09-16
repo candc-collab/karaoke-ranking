@@ -549,21 +549,14 @@
         <span class="caption" id="userCaption"></span>
       </div>
       <div id="message" class="message"></div>
-      <div style="padding: 8px 20px">
-        <button class="secondary small-button" onclick="runConnectionDiagnostic()">接続を診断</button>
-        <button class="secondary small-button" onclick="downloadConnectionDiagnostic()">診断記録を表示</button>
-        <p id="connectionDiagnosticStatus" class="caption" role="status"></p>
-        <div id="connectionRecordPanel" hidden>
-          <label for="connectionRecordText">診断記録</label>
-          <textarea id="connectionRecordText" readonly spellcheck="false" style="display:block;width:100%;max-width:100%;min-width:0;height:220px;font-size:16px;box-sizing:border-box"></textarea>
-          <div class="actions">
-            <button class="secondary" onclick="copyConnectionDiagnostic()">診断記録をコピー</button>
-            <button class="secondary" onclick="document.getElementById('connectionRecordPanel').hidden = true">閉じる</button>
-          </div>
-          <p id="connectionCopyStatus" class="caption" role="status"></p>
+      <div id="connectionRecovery" class="processing-overlay" role="dialog" aria-modal="true" aria-labelledby="connectionRecoveryTitle">
+        <div class="processing-card">
+          <h2 id="connectionRecoveryTitle">接続に時間がかかっています</h2>
+          <p id="connectionRecoveryText">少し時間をおいて、もう一度接続してください。</p>
+          <button id="connectionRetryButton">もう一度接続する</button>
+          <p class="caption">改善しない場合は、一度画面を閉じてから開き直してください。</p>
         </div>
       </div>
-      <div id="diagnosticBox" class="diagnostic"></div>
       <div id="processingOverlay" class="processing-overlay" aria-live="polite">
         <div class="processing-card">
           <div class="spinner"></div>
@@ -758,6 +751,10 @@
       </section>
 
       <section id="mypageScreen" class="screen">
+        <div id="scoreUncertainNotice" hidden role="status">
+          <p>直前の登録結果を確認できませんでした。下の歌唱履歴を確認し、同じスコアが保存されている場合は再登録しないでください。まだ処理中の可能性もあります。</p>
+          <button class="secondary" onclick="acknowledgeScoreResult()">履歴を確認しました</button>
+        </div>
         <div class="panel">
           <h2>マイページ</h2>
           <div class="stats">
@@ -817,6 +814,7 @@
       <input type="hidden" name="imageData" id="uploadImageDataField">
     </form>
 
+    <script src="./connection.js"></script>
     <script>
       const appConfig = window.KARAOKE_APP_CONFIG || {};
       const state = {
@@ -834,6 +832,8 @@
         rankingCache: {}
       };
       let pendingScore = null;
+      try { state.scoreWriteUncertain = sessionStorage.getItem('karaoke-score-uncertain') === '1'; } catch (_) {}
+      let connectionRecoveryPending = null;
 
       const diagnosticKey = 'karaoke-connection-diagnostic-v1';
       let diagnosticRecords = [];
@@ -843,91 +843,52 @@
         diagnosticRecords = diagnosticRecords.slice(-200);
         try { sessionStorage.setItem(diagnosticKey, JSON.stringify(diagnosticRecords)); } catch (_) {}
       }
-      function downloadConnectionDiagnostic() {
-        document.getElementById('connectionRecordText').value = JSON.stringify({ version: 'connection-1', records: diagnosticRecords }, null, 2);
-        document.getElementById('connectionRecordPanel').hidden = false;
-        document.getElementById('connectionCopyStatus').textContent = '「診断記録をコピー」を押して、このチャットに貼り付けてください。';
-      }
-      async function copyConnectionDiagnostic() {
-        const field = document.getElementById('connectionRecordText');
-        const status = document.getElementById('connectionCopyStatus');
-        try {
-          if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
-          await navigator.clipboard.writeText(field.value);
-          status.textContent = 'コピーしました。このチャットに貼り付けてください。';
-        } catch (_) {
-          field.focus();
-          field.select();
-          field.setSelectionRange(0, field.value.length);
-          status.textContent = '自動コピーできませんでした。選択された記録を長押しして「コピー」を選んでください。';
+
+      async function apiCall(apiName, payload) {
+        let reconnecting = false;
+        try { return await karaokeConnectionRequest(apiName, payload, {
+          url: appConfig.GAS_API_URL,
+          token: state.idToken,
+          trace: recordCommunication,
+          recover: async () => { await waitForConnectionRetry(false); reconnecting = true; },
+          slow: () => {
+            document.getElementById('loadingText').textContent = '接続に時間がかかっています。そのままお待ちください。';
+            document.getElementById('processingText').textContent = '接続に時間がかかっています。そのままお待ちください。';
+          }
+        }); } finally {
+          if (reconnecting) hideProcessing();
+          document.getElementById('loadingText').textContent = '読み込み中...';
         }
       }
-      let diagnosingConnection = false;
-      async function runConnectionDiagnostic() {
-        if (diagnosingConnection) return;
-        diagnosingConnection = true;
-        const status = document.getElementById('connectionDiagnosticStatus');
-        const results = [];
-        try {
-          for (let i = 0; i < 3; i++) {
-            status.textContent = '接続確認中 ' + (i + 1) + '/3';
-            const start = performance.now();
-            try {
-              const result = await apiCall('ping');
-              results.push(result.ok && result.data?.diagnosticVersion === 'connection-1' ? ((performance.now() - start) / 1000).toFixed(1) + '秒' : 'GASの診断版を確認してください');
-            } catch (_) { results.push('応答を確認できません'); }
-          }
-          status.textContent = results.join(' / ') + '。「診断記録を表示」から記録をコピーしてください。';
-        } finally { diagnosingConnection = false; }
-      }
 
-      function apiCall(apiName, payload) {
-        return new Promise((resolve, reject) => {
-          if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
-            reject(new Error('GAS WebアプリURLが設定されていません。'));
-            return;
-          }
-          const callbackName = '__karaokeApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-          const requestId = callbackName.replace('__karaokeApiCallback_', 'req_');
-          const started = performance.now();
-          const trace = stage => recordCommunication({ requestId, api: apiName, stage, elapsedMs: Math.round(performance.now() - started) });
-          trace('sent');
-          const script = document.createElement('script');
-          const timerId = window.setTimeout(() => {
-            trace('timeout');
-            cleanup();
-            reject(new Error('通信結果を確認できませんでした。登録操作の場合は歌唱履歴を確認してください。診断番号: ' + requestId));
-          }, 20000);
-
-          window[callbackName] = (result) => {
-            trace(result && result.ok ? 'received_ok' : 'received_error');
-            cleanup();
-            resolve(result);
+      function waitForConnectionRetry(isWrite, owner) {
+        if (connectionRecoveryPending) return connectionRecoveryPending.promise;
+        hideProcessing();
+        const panel = document.getElementById('connectionRecovery');
+        const button = document.getElementById('connectionRetryButton');
+        button.disabled = false;
+        document.getElementById('connectionRecoveryTitle').textContent = isWrite ? '登録結果を確認しましょう' : 'もう一度接続してください';
+        document.getElementById('connectionRecoveryText').textContent = isWrite
+          ? '通信が途切れましたが、保存されている可能性があります。同じ内容を再登録する前に履歴を確認してください。'
+          : '接続を確認できませんでした。入力した内容はこの画面に残っています。';
+        button.textContent = isWrite ? '再接続して確認する' : 'もう一度接続する';
+        panel.classList.add('show');
+        button.focus();
+        let release;
+        const promise = new Promise(resolve => {
+          release = resolve;
+          button.onclick = () => {
+            button.disabled = true;
+            panel.classList.remove('show');
+            connectionRecoveryPending = null;
+            showProcessing('再接続中です', '入力内容を保ったまま接続を確認しています。');
+            resolve();
           };
-
-          function cleanup() {
-            window.clearTimeout(timerId);
-            delete window[callbackName];
-            if (script.parentNode) script.parentNode.removeChild(script);
-          }
-
-          const params = new URLSearchParams();
-          params.set('api', apiName);
-          params.set('requestId', requestId);
-          params.set('callback', callbackName);
-          if (state.idToken) params.set('idToken', state.idToken);
-          if (payload) params.set('payload', JSON.stringify(payload));
-          script.onerror = () => {
-            trace('script_load_error');
-            cleanup();
-            reject(new Error('GAS APIを読み込めませんでした。docs/config.jsのGAS_API_URLを確認してください。'));
-          };
-          script.onload = () => trace('script_loaded');
-          params.set('_', String(Date.now()));
-          script.src = appConfig.GAS_API_URL + '?' + params.toString();
-          document.body.appendChild(script);
         });
+        connectionRecoveryPending = { promise, release, owner };
+        return promise;
       }
+
 
       async function start() {
         try {
@@ -1002,39 +963,14 @@
         const el = document.getElementById('message');
         el.textContent = text || '処理できませんでした。もう一度お試しください。';
         el.className = 'message show';
-        showDiagnosticIfNeeded(text || '');
       }
 
       function clearMessage() {
         const el = document.getElementById('message');
         el.textContent = '';
         el.className = 'message';
-        document.getElementById('diagnosticBox').className = 'diagnostic';
       }
 
-      function showDiagnosticIfNeeded(text) {
-        if (!/GAS API|GAS WebアプリURL|サーバー/.test(text)) {
-          return;
-        }
-        const gasUrl = appConfig.GAS_API_URL || '未設定';
-        const sampleUrl = gasUrl && gasUrl !== '未設定'
-          ? gasUrl + '?api=publicConfig&callback=test'
-          : '未設定';
-        const box = document.getElementById('diagnosticBox');
-        box.textContent = [
-          '確認してください',
-          '1. docs/config.js の GAS_API_URL が最新の /exec URL になっている',
-          '2. Apps Script を新バージョンで再デプロイしている',
-          '3. Webアプリのアクセス権が「全員」になっている',
-          '',
-          '現在の GAS_API_URL:',
-          gasUrl,
-          '',
-          'ブラウザで開いて確認するURL:',
-          sampleUrl
-        ].join('\n');
-        box.className = 'diagnostic show';
-      }
 
       function showProcessing(title, text) {
         document.getElementById('processingTitle').textContent = title || '処理中です';
@@ -1071,6 +1007,11 @@
           state.myPageCache = result.data.myPage || null;
           updateUserCaption();
           await showHome();
+        } catch (error) {
+          if (error.uncertain) {
+            await waitForConnectionRetry(true);
+            await start();
+          } else showError(error.message);
         } finally {
           hideProcessing();
           button.disabled = false;
@@ -1338,33 +1279,39 @@
       }
 
       function pollUploadResult(uploadToken, button, onMessage) {
-        let count = 0;
         clearUploadTimer();
-        state.uploadPollTimer = window.setInterval(async () => {
-          count += 1;
+        const generation = state.uploadPollGeneration;
+        let started = Date.now();
+        const poll = async () => {
           try {
             const result = await apiCall('getUploadResult', { uploadToken: uploadToken });
+            if (generation !== state.uploadPollGeneration) return;
+            if (!result.ok) {
+              window.removeEventListener('message', onMessage);
+              clearUploadTimer();
+              handleImageUploadResult(result, button);
+              return;
+            }
             if (result.ok && result.data.status === 'done') {
               window.removeEventListener('message', onMessage);
               clearUploadTimer();
               handleImageUploadResult(result.data.result, button);
-            } else if (count >= 15) {
-              window.removeEventListener('message', onMessage);
-              clearUploadTimer();
-              hideProcessing();
-              button.disabled = false;
-              showError('写真保存の完了を確認できませんでした。通信状況を確認してもう一度お試しください。');
+              return;
             }
           } catch (error) {
-            if (count >= 15) {
-              window.removeEventListener('message', onMessage);
-              clearUploadTimer();
-              hideProcessing();
-              button.disabled = false;
-              showError(error.message);
-            }
+            if (generation !== state.uploadPollGeneration) return;
+            await waitForConnectionRetry(false, 'upload');
+            started = Date.now();
+            if (generation !== state.uploadPollGeneration) return;
           }
-        }, 1500);
+          if (Date.now() - started > 180000) {
+            await waitForConnectionRetry(false, 'upload');
+            started = Date.now();
+            if (generation !== state.uploadPollGeneration) return;
+          }
+          state.uploadPollTimer = window.setTimeout(poll, 2500);
+        };
+        state.uploadPollTimer = window.setTimeout(poll, 2500);
       }
 
       function handleImageUploadResult(result, button) {
@@ -1418,8 +1365,14 @@
       }
 
       function clearUploadTimer() {
+        if (connectionRecoveryPending && connectionRecoveryPending.owner === 'upload') {
+          connectionRecoveryPending.release();
+          connectionRecoveryPending = null;
+          document.getElementById('connectionRecovery').classList.remove('show');
+        }
+        state.uploadPollGeneration = (state.uploadPollGeneration || 0) + 1;
         if (state.uploadPollTimer) {
-          window.clearInterval(state.uploadPollTimer);
+          window.clearTimeout(state.uploadPollTimer);
           state.uploadPollTimer = null;
         }
       }
@@ -1462,7 +1415,13 @@
       }
 
       async function submitScore() {
+        if (state.scoreSubmitting) return;
+        if (state.scoreWriteUncertain) {
+          await showMyPage();
+          return;
+        }
         const button = document.getElementById('scoreSubmit');
+        state.scoreSubmitting = true;
         button.disabled = true;
         showProcessing('登録中です', 'スコアを保存してランキングを更新しています。');
         try {
@@ -1497,10 +1456,19 @@
           state.myPageCache = null;
           showScreen('scoreCompleteScreen');
         } catch (error) {
+          if (error.uncertain) {
+            state.scoreWriteUncertain = true;
+            try { sessionStorage.setItem('karaoke-score-uncertain', '1'); } catch (_) {}
+            await waitForConnectionRetry(true);
+            state.myPageCache = null;
+            await showMyPage();
+            return;
+          }
           showError(error.message);
         } finally {
+          state.scoreSubmitting = false;
           hideProcessing();
-          button.disabled = false;
+          button.disabled = !!state.scoreWriteUncertain;
         }
       }
 
@@ -1718,6 +1686,7 @@
       }
 
       function renderMyPage(data, preserveNicknameInput) {
+          document.getElementById('scoreUncertainNotice').hidden = !state.scoreWriteUncertain;
           document.getElementById('mypageRank').textContent = data.current_month_rank ? data.current_month_rank + '位' : '-';
           document.getElementById('mypageMonthBest').textContent = formatScore(data.current_month_best_score);
           document.getElementById('mypageAllBest').textContent = formatScore(data.all_time_best_score);
@@ -1725,6 +1694,16 @@
           if (!preserveNicknameInput) document.getElementById('nicknameChangeInput').value = data.nickname || '';
           renderSongBests(data.song_bests || []);
           renderRecentScores(data.recent_scores || []);
+      }
+
+      function acknowledgeScoreResult() {
+        state.scoreWriteUncertain = false;
+        try { sessionStorage.removeItem('karaoke-score-uncertain'); } catch (_) {}
+        pendingScore = null;
+        state.duplicateChecked = false;
+        ['songTitleInput', 'artistNameInput', 'scoreInput'].forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('scoreSubmit').disabled = false;
+        document.getElementById('scoreUncertainNotice').hidden = true;
       }
 
       function renderRecentScores(rows) {
@@ -1890,6 +1869,12 @@
           state.myPageCache = null;
           updateUserCaption();
           await showMyPage();
+        } catch (error) {
+          if (error.uncertain) {
+            await waitForConnectionRetry(true);
+            state.myPageCache = null;
+            await showMyPage();
+          } else showError(error.message);
         } finally {
           hideProcessing();
           button.disabled = false;
