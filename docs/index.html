@@ -551,8 +551,17 @@
       <div id="message" class="message"></div>
       <div style="padding: 8px 20px">
         <button class="secondary small-button" onclick="runConnectionDiagnostic()">接続を診断</button>
-        <button class="secondary small-button" onclick="downloadConnectionDiagnostic()">診断記録を保存</button>
+        <button class="secondary small-button" onclick="downloadConnectionDiagnostic()">診断記録を表示</button>
         <p id="connectionDiagnosticStatus" class="caption" role="status"></p>
+        <div id="connectionRecordPanel" hidden>
+          <label for="connectionRecordText">診断記録</label>
+          <textarea id="connectionRecordText" readonly spellcheck="false" style="display:block;width:100%;max-width:100%;min-width:0;height:220px;font-size:16px;box-sizing:border-box"></textarea>
+          <div class="actions">
+            <button class="secondary" onclick="copyConnectionDiagnostic()">診断記録をコピー</button>
+            <button class="secondary" onclick="document.getElementById('connectionRecordPanel').hidden = true">閉じる</button>
+          </div>
+          <p id="connectionCopyStatus" class="caption" role="status"></p>
+        </div>
       </div>
       <div id="diagnosticBox" class="diagnostic"></div>
       <div id="processingOverlay" class="processing-overlay" aria-live="polite">
@@ -835,10 +844,23 @@
         try { sessionStorage.setItem(diagnosticKey, JSON.stringify(diagnosticRecords)); } catch (_) {}
       }
       function downloadConnectionDiagnostic() {
-        const blob = new Blob([JSON.stringify({ version: 'connection-1', records: diagnosticRecords }, null, 2)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a'); link.href = url; link.download = 'karaoke-connection.json'; link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        document.getElementById('connectionRecordText').value = JSON.stringify({ version: 'connection-1', records: diagnosticRecords }, null, 2);
+        document.getElementById('connectionRecordPanel').hidden = false;
+        document.getElementById('connectionCopyStatus').textContent = '「診断記録をコピー」を押して、このチャットに貼り付けてください。';
+      }
+      async function copyConnectionDiagnostic() {
+        const field = document.getElementById('connectionRecordText');
+        const status = document.getElementById('connectionCopyStatus');
+        try {
+          if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
+          await navigator.clipboard.writeText(field.value);
+          status.textContent = 'コピーしました。このチャットに貼り付けてください。';
+        } catch (_) {
+          field.focus();
+          field.select();
+          field.setSelectionRange(0, field.value.length);
+          status.textContent = '自動コピーできませんでした。選択された記録を長押しして「コピー」を選んでください。';
+        }
       }
       let diagnosingConnection = false;
       async function runConnectionDiagnostic() {
@@ -855,7 +877,7 @@
               results.push(result.ok && result.data?.diagnosticVersion === 'connection-1' ? ((performance.now() - start) / 1000).toFixed(1) + '秒' : 'GASの診断版を確認してください');
             } catch (_) { results.push('応答を確認できません'); }
           }
-          status.textContent = results.join(' / ') + '。診断記録を保存してください。';
+          status.textContent = results.join(' / ') + '。「診断記録を表示」から記録をコピーしてください。';
         } finally { diagnosingConnection = false; }
       }
 
