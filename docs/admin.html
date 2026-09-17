@@ -294,21 +294,29 @@
         font-weight: 900;
       }
     </style>
+    <link rel="stylesheet" href="./admin-theme.css">
   </head>
   <body>
     <main class="app">
       <div class="topbar">
         <div>
-          <h1>カラオケランキング管理</h1>
+          <div class="brand-label">カラオケランキング</div>
+          <h1>店舗管理</h1>
           <div id="adminInfo" class="muted">読み込み中...</div>
         </div>
       </div>
 
-      <div id="message" class="message"></div>
+      <div id="message" class="message" role="status"></div>
+      <div id="uncertainNotice" class="uncertain-notice" hidden>
+        <strong>前回の変更をご確認ください</strong>
+        <p>変更が反映されている場合は同じ操作を繰り返さないでください。まだ処理中の可能性もあります。</p>
+        <button id="uncertainAcknowledge" onclick="acknowledgeUpdate()" disabled>最新の一覧で内容を確認しました</button>
+      </div>
 
       <section id="dashboardScreen" class="screen active">
         <div class="panel">
           <h2>管理トップ</h2>
+          <label for="monthInput" class="field-label">集計する月</label>
           <input id="monthInput" type="month">
           <div class="stats">
             <div class="stat">
@@ -341,17 +349,21 @@
         <div class="panel">
           <h2>歌唱記録</h2>
           <div class="filters">
-            <input id="scoreKeyword" placeholder="ニックネーム・曲名・歌手名">
+            <label for="scoreKeyword">キーワード</label>
+            <input id="scoreKeyword" placeholder="ニックネーム・曲名・歌手名" type="search">
+            <label for="scoreMonth">歌唱月</label>
             <input id="scoreMonth" type="month">
+            <label for="scoreInputType">登録方法</label>
             <select id="scoreInputType">
               <option value="">登録方法すべて</option>
               <option value="manual">手入力</option>
               <option value="image">写真</option>
             </select>
+            <label for="scoreStatus">記録の状態</label>
             <select id="scoreStatus">
               <option value="">状態すべて</option>
-              <option value="active">active</option>
-              <option value="invalid">invalid</option>
+              <option value="active">有効</option>
+              <option value="invalid">無効</option>
             </select>
             <button class="primary" onclick="loadScores()">検索</button>
           </div>
@@ -362,7 +374,6 @@
       <section id="reviewScreen" class="screen">
         <div class="panel">
           <h2>要確認データ</h2>
-          <p class="muted">重複疑いなど、確認が必要な記録を表示します。</p>
         </div>
         <div id="reviewRows" class="list"></div>
       </section>
@@ -371,11 +382,13 @@
         <div class="panel">
           <h2>利用者管理</h2>
           <div class="filters">
-            <input id="userKeyword" placeholder="ニックネーム">
+            <label for="userKeyword">ニックネーム</label>
+            <input id="userKeyword" placeholder="名前で検索" type="search">
+            <label for="userStatus">利用状態</label>
             <select id="userStatus">
               <option value="">状態すべて</option>
-              <option value="active">active</option>
-              <option value="suspended">suspended</option>
+              <option value="active">有効</option>
+              <option value="suspended">利用停止</option>
             </select>
             <button class="primary" onclick="loadUsers()">検索</button>
           </div>
@@ -388,11 +401,13 @@
           <h2>曲台帳</h2>
           <div id="mergeNotice" class="merge-notice"></div>
           <div class="filters">
-            <input id="songKeyword" placeholder="曲名・歌手名">
+            <label for="songKeyword">曲名・歌手名</label>
+            <input id="songKeyword" placeholder="曲名・歌手名で検索" type="search">
+            <label for="songStatus">曲の状態</label>
             <select id="songStatus">
-              <option value="active">activeのみ</option>
+              <option value="active">有効のみ</option>
               <option value="">状態すべて</option>
-              <option value="inactive">inactive</option>
+              <option value="inactive">非表示</option>
             </select>
             <button class="primary" onclick="loadSongs()">検索</button>
           </div>
@@ -402,17 +417,29 @@
     </main>
 
     <nav class="tabs" aria-label="管理メニュー">
-      <button id="dashboardTab" class="active" onclick="showTab('dashboard')">トップ</button>
+      <button id="dashboardTab" class="active" aria-current="page" onclick="showTab('dashboard')">トップ</button>
       <button id="scoresTab" onclick="showTab('scores')">記録</button>
       <button id="reviewTab" onclick="showTab('review')">要確認</button>
       <button id="usersTab" onclick="showTab('users')">利用者</button>
       <button id="songsTab" onclick="showTab('songs')">曲</button>
     </nav>
 
-    <div id="modal" class="modal" role="dialog" aria-modal="true">
+    <div id="adminBusy" class="connection-overlay" role="status" aria-live="polite" hidden>
+      <div class="connection-sheet"><span class="busy-spinner" aria-hidden="true"></span><p id="busyText">読み込んでいます…</p></div>
+    </div>
+    <div id="adminRecovery" class="connection-overlay recovery" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle" hidden>
+      <div class="connection-sheet">
+        <h2 id="recoveryTitle">もう一度接続してください</h2>
+        <p id="recoveryText"></p>
+        <button id="recoveryRetry" class="primary">もう一度接続する</button>
+        <p class="muted">改善しない場合は、一度画面を閉じてから開き直してください。</p>
+      </div>
+    </div>
+    <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-panel">
         <h2 id="modalTitle"></h2>
         <div id="modalBody"></div>
+        <div id="modalMessage" class="message" role="alert"></div>
         <div class="modal-actions">
           <button type="button" onclick="closeModal()">閉じる</button>
           <button id="modalSubmit" type="button" class="primary">保存</button>
@@ -421,6 +448,7 @@
     </div>
 
     <script src="./config.js"></script>
+    <script src="./connection.js"></script>
     <script>
       const appConfig = window.KARAOKE_APP_CONFIG || {};
       const urlParams = new URLSearchParams(window.location.search);
@@ -432,48 +460,111 @@
       };
       let modalSubmitHandler = null;
 
-      function apiCall(apiName, payload) {
-        return new Promise((resolve, reject) => {
-          if (!appConfig.GAS_API_URL || appConfig.GAS_API_URL === 'YOUR_GAS_WEB_APP_EXEC_URL') {
-            reject(new Error('GAS WebアプリURLが設定されていません。'));
-            return;
-          }
+      let activeRequests = 0;
+      let writeInFlight = false;
+      let recoveryPromise = null;
+      let uncertaintyVerified = false;
+      try { state.uncertainWrite = sessionStorage.getItem('karaoke-admin-uncertain') === '1'; } catch (_) {}
+      try { state.uncertainTab = sessionStorage.getItem('karaoke-admin-uncertain-tab'); } catch (_) {}
 
-          const callbackName = '__karaokeAdminApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-          const script = document.createElement('script');
-          const timerId = window.setTimeout(() => {
-            cleanup();
-            reject(new Error('サーバーから返事がありません。GAS WebアプリURLを確認してください。'));
-          }, 20000);
+      function updateBusy() {
+        const busy = activeRequests > 0;
+        document.getElementById('adminBusy').hidden = !busy;
+        document.querySelector('.app').inert = busy;
+        document.querySelector('.tabs').inert = busy;
+        document.getElementById('modal').inert = busy;
+      }
 
-          window[callbackName] = (result) => {
-            cleanup();
-            resolve(result);
+      function reconnect(uncertain) {
+        if (recoveryPromise) return recoveryPromise;
+        const panel = document.getElementById('adminRecovery');
+        document.getElementById('recoveryTitle').textContent = uncertain ? '更新結果を確認しましょう' : 'もう一度接続してください';
+        document.getElementById('recoveryText').textContent = uncertain
+          ? '変更が保存されている可能性があります。同じ操作を繰り返す前に、最新の内容を確認してください。'
+          : '接続を確認できませんでした。入力内容は残っています。少し時間をおいて、もう一度お試しください。';
+        const button = document.getElementById('recoveryRetry');
+        button.textContent = uncertain ? '最新の内容を確認する' : 'もう一度接続する';
+        panel.hidden = false;
+        button.focus();
+        recoveryPromise = new Promise(resolve => {
+          button.onclick = () => {
+            panel.hidden = true;
+            recoveryPromise = null;
+            document.getElementById('busyText').textContent = '再接続しています…';
+            resolve();
           };
-
-          function cleanup() {
-            window.clearTimeout(timerId);
-            delete window[callbackName];
-            if (script.parentNode) script.parentNode.removeChild(script);
-          }
-
-          const params = new URLSearchParams();
-          params.set('api', apiName);
-          params.set('callback', callbackName);
-          params.set('payload', JSON.stringify(Object.assign({}, payload || {}, {
-            adminAccessKey: state.adminAccessKey
-          })));
-          params.set('_', String(Date.now()));
-          script.onerror = () => {
-            cleanup();
-            reject(new Error('GAS APIを読み込めませんでした。docs/config.jsのGAS_API_URLを確認してください。'));
-          };
-          script.src = appConfig.GAS_API_URL + '?' + params.toString();
-          document.body.appendChild(script);
         });
+        return recoveryPromise;
+      }
+
+      function updateUncertaintyNotice() {
+        document.getElementById('uncertainNotice').hidden = !state.uncertainWrite;
+        document.getElementById('uncertainAcknowledge').disabled = !uncertaintyVerified;
+      }
+
+      function acknowledgeUpdate() {
+        if (!uncertaintyVerified) return;
+        state.uncertainWrite = false;
+        try { sessionStorage.removeItem('karaoke-admin-uncertain'); } catch (_) {}
+        try { sessionStorage.removeItem('karaoke-admin-uncertain-tab'); } catch (_) {}
+        updateUncertaintyNotice();
+      }
+
+      async function refreshCurrentTab() {
+        const loaders = {dashboard: loadDashboard, scores: loadScores, review: loadReview, users: loadUsers, songs: loadSongs};
+        await loaders[state.currentTab]();
+      }
+
+      async function apiCall(apiName, payload) {
+        const writing = /^admin(Update|Invalidate|Restore|Merge)/.test(apiName);
+        if (writing && (writeInFlight || state.uncertainWrite)) {
+          if (state.uncertainWrite) showNotice('前回の変更を一覧で確認してから、次の操作に進んでください。');
+          return {ok: false, handled: true};
+        }
+        if (writing) writeInFlight = true;
+        activeRequests++;
+        document.getElementById('busyText').textContent = writing ? '変更を保存しています…' : '読み込んでいます…';
+        updateBusy();
+        try {
+          const result = await karaokeConnectionRequest(apiName, Object.assign({}, payload || {}, {
+            adminAccessKey: state.adminAccessKey
+          }), {
+            url: appConfig.GAS_API_URL,
+            trace: () => {},
+            recover: () => reconnect(false),
+            slow: () => { document.getElementById('busyText').textContent = '接続に時間がかかっています。そのままお待ちください。'; }
+          });
+          const dataTabs = {adminScores: 'scores', adminReview: 'review', adminUsers: 'users', adminSongs: 'songs'};
+          if (result.ok && dataTabs[apiName] && dataTabs[apiName] === state.uncertainTab) {
+            uncertaintyVerified = true;
+            updateUncertaintyNotice();
+          }
+          return result;
+        } catch (error) {
+          if (error.uncertain) {
+            state.uncertainWrite = true;
+            state.uncertainTab = state.currentTab;
+            uncertaintyVerified = false;
+            try { sessionStorage.setItem('karaoke-admin-uncertain', '1'); } catch (_) {}
+            try { sessionStorage.setItem('karaoke-admin-uncertain-tab', state.uncertainTab); } catch (_) {}
+            updateUncertaintyNotice();
+            await reconnect(true);
+            closeModal();
+            state.mergeSourceSong = null;
+            await refreshCurrentTab();
+            return {ok: false, handled: true};
+          }
+          showError(error.message || '読み込めませんでした。時間をおいて開き直してください。');
+          return {ok: false, handled: true};
+        } finally {
+          if (writing) writeInFlight = false;
+          activeRequests--;
+          updateBusy();
+        }
       }
 
       async function start() {
+        updateUncertaintyNotice();
         try {
           if (!state.adminAccessKey) {
             showError('管理キーがURLに付いていません。管理者用URLの末尾に ?key=管理キー を付けて開いてください。');
@@ -483,7 +574,7 @@
 
           const result = await apiCall('adminBootstrap');
           if (!result.ok) {
-            showError(result.message);
+            if (!result.handled) showError(result.message);
             return;
           }
           state.rankingMonth = result.data.rankingMonth;
@@ -492,17 +583,22 @@
           document.getElementById('adminInfo').textContent =
             (result.data.admin.name || result.data.admin.email) + ' でログイン中';
           await loadDashboard();
+          if (state.uncertainWrite && ['scores', 'review', 'users', 'songs'].includes(state.uncertainTab)) showTab(state.uncertainTab);
         } catch (error) {
           showError(error.message || '管理画面を読み込めませんでした。管理キーとGAS WebアプリURLを確認してください。');
         }
       }
 
       function showTab(tabName) {
+        if (activeRequests > 0) return;
         state.currentTab = tabName;
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tabs button').forEach(el => el.classList.remove('active'));
         document.getElementById(tabName + 'Screen').classList.add('active');
         document.getElementById(tabName + 'Tab').classList.add('active');
+        document.querySelectorAll('.tabs button').forEach(el => el.removeAttribute('aria-current'));
+        document.getElementById(tabName + 'Tab').setAttribute('aria-current', 'page');
+        window.scrollTo(0, 0);
         clearError();
         if (tabName === 'dashboard') loadDashboard();
         if (tabName === 'scores') loadScores();
@@ -517,7 +613,7 @@
         const result = await apiCall('adminDashboard', { rankingMonth: month });
         clearLoading('dashboardScreen');
         if (!result.ok) {
-          showError(result.message);
+          if (!result.handled) showError(result.message);
           return;
         }
         document.getElementById('dashboardMonth').textContent = result.data.displayMonth;
@@ -537,7 +633,8 @@
           }
         });
         if (!result.ok) {
-          showError(result.message);
+          document.getElementById('scoreRows').textContent = 'データを取得できませんでした。';
+          if (!result.handled) showError(result.message);
           return;
         }
         renderScoreCards(document.getElementById('scoreRows'), result.data.scores || [], true);
@@ -547,7 +644,8 @@
         setListLoading('reviewRows');
         const result = await apiCall('adminReview', { filters: {} });
         if (!result.ok) {
-          showError(result.message);
+          document.getElementById('reviewRows').textContent = 'データを取得できませんでした。';
+          if (!result.handled) showError(result.message);
           return;
         }
         renderScoreCards(document.getElementById('reviewRows'), result.data.scores || [], false);
@@ -562,7 +660,8 @@
           }
         });
         if (!result.ok) {
-          showError(result.message);
+          document.getElementById('userRows').textContent = 'データを取得できませんでした。';
+          if (!result.handled) showError(result.message);
           return;
         }
         renderUserCards(document.getElementById('userRows'), result.data.users || []);
@@ -578,7 +677,8 @@
           }
         });
         if (!result.ok) {
-          showError(result.message);
+          document.getElementById('songRows').textContent = 'データを取得できませんでした。';
+          if (!result.handled) showError(result.message);
           return;
         }
         renderSongCards(document.getElementById('songRows'), result.data.songs || []);
@@ -753,7 +853,7 @@
             },
             reason: 'admin_edit'
           });
-          handleAdminUpdateResult(result, '修正しました。');
+          await handleAdminUpdateResult(result, '修正しました。');
         };
       }
 
@@ -772,14 +872,14 @@
             scoreId: row.score_id,
             invalidReason: document.getElementById('invalidReason').value
           });
-          handleAdminUpdateResult(result, '無効化しました。');
+          await handleAdminUpdateResult(result, '無効化しました。');
         };
       }
 
       async function restoreScore(row) {
         if (!window.confirm('この歌唱記録を有効に戻しますか？')) return;
         const result = await apiCall('adminRestoreScore', { scoreId: row.score_id });
-        handleAdminUpdateResult(result, '有効に戻しました。');
+        await handleAdminUpdateResult(result, '有効に戻しました。');
       }
 
       function openUserRename(row) {
@@ -794,7 +894,7 @@
             },
             reason: 'nickname_edit'
           });
-          handleAdminUpdateResult(result, '名前を変更しました。');
+          await handleAdminUpdateResult(result, '名前を変更しました。');
         };
       }
 
@@ -808,7 +908,7 @@
           input: { status: status },
           reason: status === 'suspended' ? 'suspend' : 'restore'
         });
-        handleAdminUpdateResult(result, status === 'suspended' ? '停止しました。' : '復帰しました。');
+        await handleAdminUpdateResult(result, status === 'suspended' ? '停止しました。' : '復帰しました。');
       }
 
       function openSongEdit(row) {
@@ -817,8 +917,8 @@
           createField('歌手名', 'editArtistName', row.artist_name || ''),
           '<label for="editSongStatus">状態</label>',
           '<select id="editSongStatus">',
-          '<option value="active"' + (row.status === 'active' ? ' selected' : '') + '>active</option>',
-          '<option value="inactive"' + (row.status === 'inactive' ? ' selected' : '') + '>inactive</option>',
+          '<option value="active"' + (row.status === 'active' ? ' selected' : '') + '>有効</option>',
+          '<option value="inactive"' + (row.status === 'inactive' ? ' selected' : '') + '>非表示</option>',
           '</select>'
         ].join(''));
         modalSubmitHandler = async () => {
@@ -831,7 +931,7 @@
             },
             reason: 'song_edit'
           });
-          handleAdminUpdateResult(result, '曲台帳を修正しました。');
+          await handleAdminUpdateResult(result, '曲台帳を修正しました。');
         };
       }
 
@@ -853,7 +953,7 @@
           reason: 'song_merge'
         });
         if (!result.ok) {
-          showError(result.message);
+          if (!result.handled) showError(result.message);
           return;
         }
         state.mergeSourceSong = null;
@@ -882,6 +982,9 @@
       }
 
       function openModal(title, body) {
+        if (activeRequests > 0) return;
+        document.getElementById('modalMessage').className = 'message';
+        document.getElementById('modalMessage').textContent = '';
         document.getElementById('modalTitle').textContent = title;
         document.getElementById('modalBody').innerHTML = Array.isArray(body) ? body.join('') : body;
         document.getElementById('modal').className = 'modal show';
@@ -902,7 +1005,7 @@
 
       async function handleAdminUpdateResult(result, successMessage) {
         if (!result.ok) {
-          showError(result.message);
+          if (!result.handled) showError(result.message);
           return;
         }
         closeModal();
@@ -925,7 +1028,7 @@
       function appendBadge(parent, text, tone) {
         const badge = document.createElement('span');
         badge.className = 'badge' + (tone ? ' ' + tone : '');
-        badge.textContent = text || '';
+        badge.textContent = ({active: '有効', invalid: '無効', suspended: '利用停止', inactive: '非表示'})[text] || text || '';
         parent.appendChild(badge);
       }
 
@@ -982,7 +1085,7 @@
       }
 
       function showError(text) {
-        const message = document.getElementById('message');
+        const message = document.getElementById(document.getElementById('modal').classList.contains('show') ? 'modalMessage' : 'message');
         message.textContent = text || '処理できませんでした。';
         message.className = 'message show';
         message.style.background = '';
@@ -1007,7 +1110,7 @@
 
       document.getElementById('monthInput').addEventListener('change', loadDashboard);
       document.getElementById('modalSubmit').addEventListener('click', async () => {
-        if (!modalSubmitHandler) return;
+        if (!modalSubmitHandler || writeInFlight || activeRequests > 0) return;
         const button = document.getElementById('modalSubmit');
         button.disabled = true;
         button.textContent = '処理中...';
