@@ -1,6 +1,7 @@
 // Serialize JSONP requests. A timeout is not proof that a write failed.
 (function () {
-  const writes = new Set(['registerNickname', 'updateNickname', 'submitManualScore', 'submitImageScore']);
+  const writes = new Set(['registerNickname', 'updateNickname', 'submitManualScore', 'submitImageScore',
+    'adminUpdateScore', 'adminInvalidateScore', 'adminRestoreScore', 'adminUpdateUser', 'adminUpdateSong', 'adminMergeSong']);
   let queue = Promise.resolve();
   const pendingReads = new Map();
 
