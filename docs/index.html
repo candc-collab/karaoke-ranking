@@ -901,7 +901,9 @@
             return;
           }
 
+          const liffStarted = performance.now();
           await liff.init({ liffId: appConfig.LIFF_ID });
+          window.karaokeMeasurePhase?.('liff_init', performance.now() - liffStarted);
           if (!liff.isLoggedIn()) {
             liff.login();
             return;
@@ -923,6 +925,7 @@
           state.user = result.data.bootstrap.user;
           state.currentMonth = result.data.rankingMonth;
           state.rankingMonth = result.data.rankingMonth;
+          if (result.data.ranking) state.rankingCache[state.currentMonth] = result.data.ranking;
           if (result.data.myPage) {
             state.myPageCache = result.data.myPage;
           }
@@ -1244,6 +1247,7 @@
             document.getElementById('uploadMimeTypeField').value = 'image/jpeg';
             document.getElementById('uploadImageDataField').value = base64;
             document.getElementById('imageUploadForm').action = appConfig.GAS_API_URL;
+            state.uploadStartedAt = performance.now();
             document.getElementById('imageUploadForm').submit();
             pollUploadResult(uploadToken, button, onMessage);
           })
@@ -1315,6 +1319,10 @@
       }
 
       function handleImageUploadResult(result, button) {
+        if (typeof state.uploadStartedAt === 'number') {
+          window.karaokeMeasurePhase?.('photo_roundtrip', performance.now() - state.uploadStartedAt);
+          state.uploadStartedAt = null;
+        }
         hideProcessing();
         button.disabled = false;
         if (!result || !result.ok) {
