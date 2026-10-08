@@ -572,7 +572,7 @@
             return;
           }
 
-          const result = await apiCall('adminBootstrap');
+          const result = await apiCall('adminDashboard');
           if (!result.ok) {
             if (!result.handled) showError(result.message);
             return;
@@ -582,7 +582,7 @@
           document.getElementById('scoreMonth').value = state.rankingMonth;
           document.getElementById('adminInfo').textContent =
             (result.data.admin.name || result.data.admin.email) + ' でログイン中';
-          await loadDashboard();
+          renderDashboard(result.data);
           if (state.uncertainWrite && ['scores', 'review', 'users', 'songs'].includes(state.uncertainTab)) showTab(state.uncertainTab);
         } catch (error) {
           showError(error.message || '管理画面を読み込めませんでした。管理キーとGAS WebアプリURLを確認してください。');
@@ -616,10 +616,14 @@
           if (!result.handled) showError(result.message);
           return;
         }
-        document.getElementById('dashboardMonth').textContent = result.data.displayMonth;
-        document.getElementById('scoreCount').textContent = result.data.score_count + '件';
-        document.getElementById('participantCount').textContent = result.data.participant_count + '人';
-        document.getElementById('reviewCount').textContent = result.data.review_count + '件';
+        renderDashboard(result.data);
+      }
+
+      function renderDashboard(data) {
+        document.getElementById('dashboardMonth').textContent = data.displayMonth;
+        document.getElementById('scoreCount').textContent = data.score_count + '件';
+        document.getElementById('participantCount').textContent = data.participant_count + '人';
+        document.getElementById('reviewCount').textContent = data.review_count + '件';
       }
 
       async function loadScores() {
